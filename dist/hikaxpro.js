@@ -11,6 +11,8 @@ const ENDPOINTS = {
     Session_Capabilities: '/ISAPI/Security/sessionLogin/capabilities?username=',
     Session_Login: '/ISAPI/Security/sessionLogin',
     HostStatus: '/ISAPI/SecurityCP/status/host',
+    Zones: '/ISAPI/SecurityCP/status/zones',
+    SubSystems: '/ISAPI/SecurityCP/status/subSystems',
 };
 const XML_SCHEMA = 'http://www.hikvision.com/ver20/XMLSchema';
 class HikAxPro {
@@ -119,31 +121,66 @@ class HikAxPro {
             throw new Error(`Login failed: ${response.status} ${response.data}`);
         }
     }
-    async isArmed() {
+    /**
+     * Fetch subsystem statuses from the /ISAPI/SecurityCP/status/subSystems endpoint.
+     */
+    async fetchSubsystemStatuses() {
         if (!this.cookie)
             throw new Error('Not logged in');
-        const url = `http://${this.host}${ENDPOINTS.HostStatus}?format=json`;
+        const url = `http://${this.host}${ENDPOINTS.SubSystems}?format=json`;
         const headers = this.getRequestHeaders();
         try {
             const response = await axios_1.default.get(url, { headers });
             const data = response.data;
-            const subsystems = data?.AlarmHostStatus?.SubSysList || [];
-            const armedStatuses = subsystems
-                .filter((s) => s.SubSys && s.SubSys.enabled)
+            // payload logging removed
+            // The payload is { SubSysList: [ { SubSys: {...} }, ... ] }
+            const subsystems = data?.SubSysList || [];
+            return subsystems
+                .map((s) => s.SubSys)
+                .filter((s) => s && s.enabled)
                 .map((s) => ({
-                id: s.SubSys.id,
-                name: s.SubSys.name,
-                arming: s.SubSys.arming,
+                id: s.id,
+                name: s.name,
+                arming: s.arming,
             }));
-            if (armedStatuses.length === 0) {
-                throw new Error('No enabled subsystems found');
-            }
-            return armedStatuses;
         }
         catch (err) {
             if (err.response) {
-                globalThis.console.error('isArmed error:', err.response.status, err.response.data);
-                throw new Error(`isArmed request failed: ${err.response.status}`);
+                globalThis.console.error('fetchSubsystemStatuses error:', err.response.status, err.response.data);
+                throw new Error(`fetchSubsystemStatuses request failed: ${err.response.status}`);
+            }
+            else {
+                throw err;
+            }
+        }
+    }
+    /**
+     * Fetch zone statuses from the /ISAPI/SecurityCP/status/zones endpoint.
+     */
+    async fetchZoneStatuses() {
+        if (!this.cookie)
+            throw new Error('Not logged in');
+        const url = `http://${this.host}${ENDPOINTS.Zones}?format=json`;
+        const headers = this.getRequestHeaders();
+        try {
+            const response = await axios_1.default.get(url, { headers });
+            const data = response.data;
+            // payload logging removed
+            // The payload is { ZoneList: [ { Zone: {...} }, ... ] }
+            const zones = data?.ZoneList || [];
+            return zones
+                .map((z) => z.Zone)
+                .filter((z) => z)
+                .map((z) => ({
+                id: z.id,
+                name: z.name,
+                status: z.status,
+            }));
+        }
+        catch (err) {
+            if (err.response) {
+                globalThis.console.error('fetchZoneStatuses error:', err.response.status, err.response.data);
+                throw new Error(`fetchZoneStatuses request failed: ${err.response.status}`);
             }
             else {
                 throw err;
