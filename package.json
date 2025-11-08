@@ -1,0 +1,14 @@
+{
+  "name": "homebridge-hikvision-ax-pro",
+  "version": "1.0.0",
+  "description": "Vanilla Node.js project for Homebridge Hikvision AX Pro integration.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}
