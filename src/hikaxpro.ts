@@ -9,6 +9,10 @@ const ENDPOINTS = {
   HostStatus: '/ISAPI/SecurityCP/status/host',
   Zones: '/ISAPI/SecurityCP/status/zones',
   SubSystems: '/ISAPI/SecurityCP/status/subSystems',
+  // Control endpoints (subsystem id placeholder will be replaced)
+  Alarm_Disarm: '/ISAPI/SecurityCP/control/disarm/{}',
+  Alarm_ArmAway: '/ISAPI/SecurityCP/control/arm/{}?ways=away',
+  Alarm_ArmHome: '/ISAPI/SecurityCP/control/arm/{}?ways=stay',
 };
 const XML_SCHEMA = 'http://www.hikvision.com/ver20/XMLSchema';
 
@@ -39,7 +43,7 @@ export class HikAxPro {
 
   // Session cookie for authenticated requests
   private cookie: string | null = null;
-  
+
   // Internal flag to avoid multiple simultaneous login attempts
   private loginPromise: Promise<void> | null = null;
 
@@ -48,6 +52,16 @@ export class HikAxPro {
     this.username = username;
     this.password = password;
     this.userLevel = userLevel;
+  }
+
+  /** Helper to inject subsystem id into endpoint templates */
+  private static fillSubsystemEndpoint(template: string, subsystemId: string | number): string {
+    return template.replace('{}', String(subsystemId));
+  }
+
+  /** Append format=json preserving existing query parameters */
+  private static withJsonFormat(endpoint: string): string {
+    return endpoint.includes('?') ? `${endpoint}&format=json` : `${endpoint}?format=json`;
   }
 
   private getRequestHeaders(contentType: string | null = null): Record<string, string> {
@@ -234,5 +248,57 @@ export class HikAxPro {
         name: z.name,
         status: z.status,
       }));
+  }
+
+  /**
+   * Arm subsystem in STAY/HOME mode. If subsystemId omitted, uses wildcard 0xffffffff (all / default).
+   * Optional code will be sent for modules requiring authorization.
+   */
+  async armStay(subsystemId?: string | number, code?: string): Promise<any> {
+    const sid = subsystemId ?? '0xffffffff';
+    const endpoint = HikAxPro.withJsonFormat(
+      HikAxPro.fillSubsystemEndpoint(ENDPOINTS.Alarm_ArmHome, sid)
+    );
+    const body = code ? { Operate: { moduleOperateCode: code } } : undefined;
+    return this.sendRequest<any>(
+      'PUT',
+      endpoint,
+      body,
+      body ? { 'Content-Type': 'application/json' } : {}
+    );
+  }
+
+  /**
+   * Arm subsystem in AWAY mode. If subsystemId omitted, uses wildcard 0xffffffff.
+   */
+  async armAway(subsystemId?: string | number, code?: string): Promise<any> {
+    const sid = subsystemId ?? '0xffffffff';
+    const endpoint = HikAxPro.withJsonFormat(
+      HikAxPro.fillSubsystemEndpoint(ENDPOINTS.Alarm_ArmAway, sid)
+    );
+    const body = code ? { Operate: { moduleOperateCode: code } } : undefined;
+    return this.sendRequest<any>(
+      'PUT',
+      endpoint,
+      body,
+      body ? { 'Content-Type': 'application/json' } : {}
+    );
+  }
+
+  /**
+   * Disarm subsystem. If subsystemId omitted, uses wildcard 0xffffffff.
+   */
+  async disarm(subsystemId?: string | number, code?: string): Promise<any> {
+    const sid = subsystemId ?? '0xffffffff';
+    const endpoint = HikAxPro.withJsonFormat(
+      HikAxPro.fillSubsystemEndpoint(ENDPOINTS.Alarm_Disarm, sid)
+    );
+    const body = code ? { Operate: { moduleOperateCode: code } } : undefined;
+    return this.sendRequest<any>(
+      'PUT',
+      endpoint,
+      body,
+      body ? { 'Content-Type': 'application/json' } : {}
+    );
   }
 }
