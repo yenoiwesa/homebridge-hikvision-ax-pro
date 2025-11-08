@@ -32,7 +32,6 @@ module.exports = [
     rules: {
       semi: ['error', 'always'],
       quotes: ['error', 'single'],
-      'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': ['warn'],
       'no-console': 'off',
     },
