@@ -76,7 +76,13 @@ class HikAxPro {
         return result;
     }
     buildLoginXML(sessionID, username, encodedPassword, sessionIDVersion) {
-        return `<?xml version="1.0" encoding="UTF-8"?>\n<SessionLogin xmlns=\"${XML_SCHEMA}\">\n  <sessionID>${sessionID}</sessionID>\n  <userName>${username}</userName>\n  <password>${encodedPassword}</password>\n  <sessionIDVersion>${sessionIDVersion}</sessionIDVersion>\n</SessionLogin>`;
+        return `<?xml version="1.0" encoding="UTF-8"?>
+<SessionLogin xmlns="${XML_SCHEMA}">
+  <sessionID>${sessionID}</sessionID>
+  <userName>${username}</userName>
+  <password>${encodedPassword}</password>
+  <sessionIDVersion>${sessionIDVersion}</sessionIDVersion>
+</SessionLogin>`;
     }
     async login() {
         const params = await this.getSessionParams();
@@ -106,7 +112,7 @@ class HikAxPro {
             if (!cookie)
                 throw new Error('No session cookie or sessionID provided');
             this.cookie = cookie;
-            return true;
+            return;
         }
         else {
             this.cookie = null;
@@ -136,7 +142,7 @@ class HikAxPro {
         }
         catch (err) {
             if (err.response) {
-                console.error('isArmed error:', err.response.status, err.response.data);
+                globalThis.console.error('isArmed error:', err.response.status, err.response.data);
                 throw new Error(`isArmed request failed: ${err.response.status}`);
             }
             else {

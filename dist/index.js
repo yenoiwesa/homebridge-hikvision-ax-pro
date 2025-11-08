@@ -14,14 +14,14 @@ async function main() {
     });
     try {
         await axpro.login();
-        console.log('Login successful!');
+        globalThis.console.log('Login successful!');
         const statuses = await axpro.isArmed();
         statuses.forEach((s) => {
-            console.log(`Subsystem ${s.id} (${s.name}): ${s.arming}`);
+            globalThis.console.log(`Subsystem ${s.id} (${s.name}): ${s.arming}`);
         });
     }
     catch (err) {
-        console.error('Error:', err.message);
+        globalThis.console.error('Error:', err.message);
     }
 }
 if (require.main === module) {
