@@ -194,8 +194,6 @@ export class HikAxPro {
     try {
       const response = await axios.get(url, { headers });
       const data = response.data;
-  // payload logging removed
-      // The payload is { ZoneList: [ { Zone: {...} }, ... ] }
       const zones = data?.ZoneList || [];
       return zones
         .map((z: any) => z.Zone)
