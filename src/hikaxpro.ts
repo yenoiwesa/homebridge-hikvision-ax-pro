@@ -1,4 +1,5 @@
 import axios from 'axios';
+import type { AxiosResponse } from 'axios';
 import xml2js from 'xml2js';
 import crypto from 'crypto';
 
@@ -18,7 +19,6 @@ export interface HikAxProOptions {
   userLevel?: number;
 }
 
-
 export interface SubsystemStatus {
   id: string;
   name: string;
@@ -36,28 +36,32 @@ export class HikAxPro {
   username: string;
   password: string;
   userLevel: number;
-  cookie: string | null;
+
+  // Session cookie for authenticated requests
+  private cookie: string | null = null;
+  
+  // Internal flag to avoid multiple simultaneous login attempts
+  private loginPromise: Promise<void> | null = null;
 
   constructor({ host, username, password, userLevel = 1 }: HikAxProOptions) {
     this.host = host;
     this.username = username;
     this.password = password;
     this.userLevel = userLevel;
-    this.cookie = null;
   }
 
-  getRequestHeaders(contentType: string | null = null): Record<string, string> {
+  private getRequestHeaders(contentType: string | null = null): Record<string, string> {
     const headers: Record<string, string> = { 'X-Userlevel': String(this.userLevel) };
     if (this.cookie) headers['Cookie'] = this.cookie;
     if (contentType) headers['Content-Type'] = contentType;
     return headers;
   }
 
-  sha256(data: string): string {
+  private sha256(data: string): string {
     return crypto.createHash('sha256').update(data).digest('hex');
   }
 
-  async getSessionParams(): Promise<any> {
+  private async getSessionParams(): Promise<any> {
     const url = `http://${this.host}${ENDPOINTS.Session_Capabilities}${encodeURIComponent(this.username)}`;
     const headers = this.getRequestHeaders();
     const response = await axios.get(url, { headers });
@@ -75,7 +79,7 @@ export class HikAxPro {
     };
   }
 
-  encodePassword(params: any): string {
+  private encodePassword(params: any): string {
     const { sessionIDVersion, isIrreversible, salt, salt2, challenge, iterations } = params;
     let result: string;
     if (sessionIDVersion === '2' && isIrreversible) {
@@ -100,7 +104,7 @@ export class HikAxPro {
     return result;
   }
 
-  buildLoginXML(
+  private buildLoginXML(
     sessionID: string,
     username: string,
     encodedPassword: string,
@@ -115,7 +119,7 @@ export class HikAxPro {
 </SessionLogin>`;
   }
 
-  async login(): Promise<void> {
+  private async login(): Promise<void> {
     const params = await this.getSessionParams();
     const encodedPassword = this.encodePassword(params);
     const xml = this.buildLoginXML(
@@ -154,62 +158,81 @@ export class HikAxPro {
   }
 
   /**
+   * Centralized request helper that ensures we are logged in and retries once on 401.
+   * @param method HTTP method
+   * @param endpoint Endpoint path beginning with '/'
+   * @param data Optional request body (for POST/PUT/etc.)
+   * @param extraHeaders Optional extra headers to merge
+   */
+  private async sendRequest<T = any>(
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH',
+    endpoint: string,
+    data?: any,
+    extraHeaders: Record<string, string> = {}
+  ): Promise<T> {
+    // Ensure endpoint formatting
+    if (!endpoint.startsWith('/')) throw new Error('Endpoint must start with /');
+
+    // Ensure we have a valid session (single-flight)
+    if (!this.cookie) {
+      if (!this.loginPromise) {
+        this.loginPromise = this.login().finally(() => (this.loginPromise = null));
+      }
+      await this.loginPromise;
+    }
+
+    const attempt = async (): Promise<AxiosResponse<any>> => {
+      const url = `http://${this.host}${endpoint}`;
+      const headers = { ...this.getRequestHeaders(), ...extraHeaders };
+      return axios({ method, url, data, headers, validateStatus: () => true });
+    };
+
+    let response = await attempt();
+    if (response.status === 401) {
+      // Session invalid – force re-login then retry once
+      this.cookie = null;
+      if (!this.loginPromise) {
+        this.loginPromise = this.login().finally(() => (this.loginPromise = null));
+      }
+      await this.loginPromise;
+      response = await attempt();
+    }
+
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(`Request failed: ${response.status} ${response.data ?? ''}`);
+    }
+    return response.data as T;
+  }
+
+  /**
    * Fetch subsystem statuses from the /ISAPI/SecurityCP/status/subSystems endpoint.
    */
   async fetchSubsystemStatuses(): Promise<SubsystemStatus[]> {
-    if (!this.cookie) throw new Error('Not logged in');
-    const url = `http://${this.host}${ENDPOINTS.SubSystems}?format=json`;
-    const headers = this.getRequestHeaders();
-    try {
-      const response = await axios.get(url, { headers });
-      const data = response.data;
-  // payload logging removed
-      // The payload is { SubSysList: [ { SubSys: {...} }, ... ] }
-      const subsystems = data?.SubSysList || [];
-      return subsystems
-        .map((s: any) => s.SubSys)
-        .filter((s: any) => s && s.enabled)
-        .map((s: any) => ({
-          id: s.id,
-          name: s.name,
-          arming: s.arming,
-        }));
-    } catch (err: any) {
-      if (err.response) {
-        globalThis.console.error('fetchSubsystemStatuses error:', err.response.status, err.response.data);
-        throw new Error(`fetchSubsystemStatuses request failed: ${err.response.status}`);
-      } else {
-        throw err;
-      }
-    }
+    const data = await this.sendRequest<any>('GET', `${ENDPOINTS.SubSystems}?format=json`);
+    const subsystems = data?.SubSysList || [];
+    return subsystems
+      .map((s: any) => s.SubSys)
+      .filter((s: any) => s && s.enabled)
+      .map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        arming: s.arming,
+      }));
   }
 
   /**
    * Fetch zone statuses from the /ISAPI/SecurityCP/status/zones endpoint.
    */
   async fetchZoneStatuses(): Promise<ZoneStatus[]> {
-    if (!this.cookie) throw new Error('Not logged in');
-    const url = `http://${this.host}${ENDPOINTS.Zones}?format=json`;
-    const headers = this.getRequestHeaders();
-    try {
-      const response = await axios.get(url, { headers });
-      const data = response.data;
-      const zones = data?.ZoneList || [];
-      return zones
-        .map((z: any) => z.Zone)
-        .filter((z: any) => z)
-        .map((z: any) => ({
-          id: z.id,
-          name: z.name,
-          status: z.status,
-        }));
-    } catch (err: any) {
-      if (err.response) {
-        globalThis.console.error('fetchZoneStatuses error:', err.response.status, err.response.data);
-        throw new Error(`fetchZoneStatuses request failed: ${err.response.status}`);
-      } else {
-        throw err;
-      }
-    }
+    const data = await this.sendRequest<any>('GET', `${ENDPOINTS.Zones}?format=json`);
+    const zones = data?.ZoneList || [];
+    return zones
+      .map((z: any) => z.Zone)
+      .filter((z: any) => z)
+      .map((z: any) => ({
+        id: z.id,
+        name: z.name,
+        status: z.status,
+      }));
   }
 }

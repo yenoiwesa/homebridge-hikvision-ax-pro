@@ -13,8 +13,8 @@ async function main() {
         userLevel: USER_LEVEL,
     });
     try {
-        await axpro.login();
-        globalThis.console.log('Login successful!');
+        // First request will trigger automatic login via sendRequest.
+        globalThis.console.log('Attempting automatic login on first request...');
         const subsystems = await axpro.fetchSubsystemStatuses();
         subsystems.forEach((s) => {
             globalThis.console.log(`Subsystem ${s.id} (${s.name}): ${s.arming}`);
@@ -28,7 +28,7 @@ async function main() {
                 });
             }
             if (i < 59) {
-                await new Promise((resolve) => setTimeout(resolve, 1000));
+                await new Promise((resolve) => globalThis.setTimeout(resolve, 1000));
             }
         }
     }

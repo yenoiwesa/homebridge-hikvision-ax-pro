@@ -17,11 +17,14 @@ const ENDPOINTS = {
 const XML_SCHEMA = 'http://www.hikvision.com/ver20/XMLSchema';
 class HikAxPro {
     constructor({ host, username, password, userLevel = 1 }) {
+        // Session cookie for authenticated requests
+        this.cookie = null;
+        // Internal flag to avoid multiple simultaneous login attempts
+        this.loginPromise = null;
         this.host = host;
         this.username = username;
         this.password = password;
         this.userLevel = userLevel;
-        this.cookie = null;
     }
     getRequestHeaders(contentType = null) {
         const headers = { 'X-Userlevel': String(this.userLevel) };
@@ -122,70 +125,72 @@ class HikAxPro {
         }
     }
     /**
+     * Centralized request helper that ensures we are logged in and retries once on 401.
+     * @param method HTTP method
+     * @param endpoint Endpoint path beginning with '/'
+     * @param data Optional request body (for POST/PUT/etc.)
+     * @param extraHeaders Optional extra headers to merge
+     */
+    async sendRequest(method, endpoint, data, extraHeaders = {}) {
+        // Ensure endpoint formatting
+        if (!endpoint.startsWith('/'))
+            throw new Error('Endpoint must start with /');
+        // Ensure we have a valid session (single-flight)
+        if (!this.cookie) {
+            if (!this.loginPromise) {
+                this.loginPromise = this.login().finally(() => (this.loginPromise = null));
+            }
+            await this.loginPromise;
+        }
+        const attempt = async () => {
+            const url = `http://${this.host}${endpoint}`;
+            const headers = { ...this.getRequestHeaders(), ...extraHeaders };
+            return (0, axios_1.default)({ method, url, data, headers, validateStatus: () => true });
+        };
+        let response = await attempt();
+        if (response.status === 401) {
+            // Session invalid – force re-login then retry once
+            this.cookie = null;
+            if (!this.loginPromise) {
+                this.loginPromise = this.login().finally(() => (this.loginPromise = null));
+            }
+            await this.loginPromise;
+            response = await attempt();
+        }
+        if (response.status < 200 || response.status >= 300) {
+            throw new Error(`Request failed: ${response.status} ${response.data ?? ''}`);
+        }
+        return response.data;
+    }
+    /**
      * Fetch subsystem statuses from the /ISAPI/SecurityCP/status/subSystems endpoint.
      */
     async fetchSubsystemStatuses() {
-        if (!this.cookie)
-            throw new Error('Not logged in');
-        const url = `http://${this.host}${ENDPOINTS.SubSystems}?format=json`;
-        const headers = this.getRequestHeaders();
-        try {
-            const response = await axios_1.default.get(url, { headers });
-            const data = response.data;
-            // payload logging removed
-            // The payload is { SubSysList: [ { SubSys: {...} }, ... ] }
-            const subsystems = data?.SubSysList || [];
-            return subsystems
-                .map((s) => s.SubSys)
-                .filter((s) => s && s.enabled)
-                .map((s) => ({
-                id: s.id,
-                name: s.name,
-                arming: s.arming,
-            }));
-        }
-        catch (err) {
-            if (err.response) {
-                globalThis.console.error('fetchSubsystemStatuses error:', err.response.status, err.response.data);
-                throw new Error(`fetchSubsystemStatuses request failed: ${err.response.status}`);
-            }
-            else {
-                throw err;
-            }
-        }
+        const data = await this.sendRequest('GET', `${ENDPOINTS.SubSystems}?format=json`);
+        const subsystems = data?.SubSysList || [];
+        return subsystems
+            .map((s) => s.SubSys)
+            .filter((s) => s && s.enabled)
+            .map((s) => ({
+            id: s.id,
+            name: s.name,
+            arming: s.arming,
+        }));
     }
     /**
      * Fetch zone statuses from the /ISAPI/SecurityCP/status/zones endpoint.
      */
     async fetchZoneStatuses() {
-        if (!this.cookie)
-            throw new Error('Not logged in');
-        const url = `http://${this.host}${ENDPOINTS.Zones}?format=json`;
-        const headers = this.getRequestHeaders();
-        try {
-            const response = await axios_1.default.get(url, { headers });
-            const data = response.data;
-            // payload logging removed
-            // The payload is { ZoneList: [ { Zone: {...} }, ... ] }
-            const zones = data?.ZoneList || [];
-            return zones
-                .map((z) => z.Zone)
-                .filter((z) => z)
-                .map((z) => ({
-                id: z.id,
-                name: z.name,
-                status: z.status,
-            }));
-        }
-        catch (err) {
-            if (err.response) {
-                globalThis.console.error('fetchZoneStatuses error:', err.response.status, err.response.data);
-                throw new Error(`fetchZoneStatuses request failed: ${err.response.status}`);
-            }
-            else {
-                throw err;
-            }
-        }
+        const data = await this.sendRequest('GET', `${ENDPOINTS.Zones}?format=json`);
+        const zones = data?.ZoneList || [];
+        return zones
+            .map((z) => z.Zone)
+            .filter((z) => z)
+            .map((z) => ({
+            id: z.id,
+            name: z.name,
+            status: z.status,
+        }));
     }
 }
 exports.HikAxPro = HikAxPro;
