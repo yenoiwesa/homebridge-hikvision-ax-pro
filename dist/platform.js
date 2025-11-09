@@ -22,7 +22,7 @@ class HikvisionAxProPlatform {
         // Validate configuration
         if (!config.host || !config.username || !config.password) {
             this.log.error('Missing required configuration: host, username, and password are required');
-            return;
+            throw new Error('Invalid configuration');
         }
         // Initialize HikAxPro client
         this.hikaxpro = new hikaxpro_1.HikAxPro({

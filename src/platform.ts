@@ -31,8 +31,8 @@ export class HikvisionAxProPlatform implements DynamicPlatformPlugin {
   public readonly Service: typeof Service;
   public readonly Characteristic: typeof Characteristic;
   public readonly accessories: Map<string, PlatformAccessory> = new Map();
-  public readonly hikaxpro!: HikAxPro;
-  public readonly cacheManager!: CacheManager;
+  public readonly hikaxpro: HikAxPro;
+  public readonly cacheManager: CacheManager;
 
   constructor(
     public readonly log: Logger,
@@ -45,11 +45,11 @@ export class HikvisionAxProPlatform implements DynamicPlatformPlugin {
     // Validate configuration
     if (!config.host || !config.username || !config.password) {
       this.log.error('Missing required configuration: host, username, and password are required');
-      return;
+      throw new Error('Invalid configuration');
     }
 
     // Initialize HikAxPro client
-    (this as { hikaxpro: HikAxPro }).hikaxpro = new HikAxPro({
+    this.hikaxpro = new HikAxPro({
       host: config.host,
       username: config.username,
       password: config.password,
@@ -58,11 +58,7 @@ export class HikvisionAxProPlatform implements DynamicPlatformPlugin {
 
     // Initialize cache manager
     const pollingInterval = config.pollingInterval || 5000;
-    (this as { cacheManager: CacheManager }).cacheManager = new CacheManager(
-      this.hikaxpro,
-      pollingInterval,
-      this.log
-    );
+    this.cacheManager = new CacheManager(this.hikaxpro, pollingInterval, this.log);
 
     this.log.debug('Finished initializing platform');
 
