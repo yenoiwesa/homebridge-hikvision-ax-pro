@@ -28,6 +28,13 @@ class SecuritySystemAccessory {
         // Register handlers for SecuritySystemTargetState (user sets this)
         this.service
             .getCharacteristic(this.platform.Characteristic.SecuritySystemTargetState)
+            .setProps({
+            validValues: [
+                this.platform.Characteristic.SecuritySystemTargetState.STAY_ARM,
+                this.platform.Characteristic.SecuritySystemTargetState.AWAY_ARM,
+                this.platform.Characteristic.SecuritySystemTargetState.DISARM,
+            ],
+        })
             .onGet(this.getTargetState.bind(this))
             .onSet(this.setTargetState.bind(this));
         // Register for cache updates
@@ -127,11 +134,6 @@ class SecuritySystemAccessory {
                 case this.platform.Characteristic.SecuritySystemTargetState.DISARM:
                     await this.platform.hikaxpro.disarm(subsystemId);
                     this.platform.log.info('Disarmed');
-                    break;
-                case this.platform.Characteristic.SecuritySystemTargetState.NIGHT_ARM:
-                    // Night arm not supported by Hikvision, treat as stay
-                    await this.platform.hikaxpro.armStay(subsystemId);
-                    this.platform.log.info('Armed in STAY mode (NIGHT requested but not supported)');
                     break;
             }
             // Update the current state after a short delay
