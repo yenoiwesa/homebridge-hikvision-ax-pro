@@ -1,5 +1,6 @@
 import type { CharacteristicValue, PlatformAccessory, Service } from 'homebridge';
 import type { HikvisionAxProPlatform } from './platform';
+import type { CacheManager } from './cacheManager';
 
 /**
  * Motion Sensor Accessory
@@ -7,13 +8,12 @@ import type { HikvisionAxProPlatform } from './platform';
  */
 export class MotionSensorAccessory {
   private readonly service: Service;
-  private readonly platform: HikvisionAxProPlatform;
-  private readonly accessory: PlatformAccessory;
 
-  constructor(platform: HikvisionAxProPlatform, accessory: PlatformAccessory) {
-    this.platform = platform;
-    this.accessory = accessory;
-
+  constructor(
+    private readonly platform: HikvisionAxProPlatform,
+    private readonly accessory: PlatformAccessory,
+    private readonly cacheManager: CacheManager
+  ) {
     // Set accessory information
     this.accessory
       .getService(this.platform.Service.AccessoryInformation)!
@@ -38,6 +38,9 @@ export class MotionSensorAccessory {
     this.service
       .getCharacteristic(this.platform.Characteristic.MotionDetected)
       .onGet(this.getMotionDetected.bind(this));
+
+    // Register for cache updates
+    this.cacheManager.onUpdate(() => this.updateFromCache());
   }
 
   /**
@@ -45,7 +48,7 @@ export class MotionSensorAccessory {
    */
   async getMotionDetected(): Promise<CharacteristicValue> {
     try {
-      const zones = this.platform.getCachedZones();
+      const zones = this.cacheManager.getCachedZones();
       const zone = zones.find((z) => z.id === this.accessory.context.device.id);
 
       if (zone) {
@@ -68,9 +71,9 @@ export class MotionSensorAccessory {
   /**
    * Update HomeKit characteristic from cached data
    */
-  public updateFromCache() {
+  private updateFromCache() {
     try {
-      const zones = this.platform.getCachedZones();
+      const zones = this.cacheManager.getCachedZones();
       const zone = zones.find((z) => z.id === this.accessory.context.device.id);
 
       if (zone) {

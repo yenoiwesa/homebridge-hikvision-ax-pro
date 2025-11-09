@@ -6,9 +6,10 @@ exports.SecuritySystemAccessory = void 0;
  * Represents a Hikvision AX Pro alarm subsystem as a HomeKit SecuritySystem
  */
 class SecuritySystemAccessory {
-    constructor(platform, accessory) {
+    constructor(platform, accessory, cacheManager) {
         this.platform = platform;
         this.accessory = accessory;
+        this.cacheManager = cacheManager;
         // Set accessory information
         this.accessory
             .getService(this.platform.Service.AccessoryInformation)
@@ -29,6 +30,8 @@ class SecuritySystemAccessory {
             .getCharacteristic(this.platform.Characteristic.SecuritySystemTargetState)
             .onGet(this.getTargetState.bind(this))
             .onSet(this.setTargetState.bind(this));
+        // Register for cache updates
+        this.cacheManager.onUpdate(() => this.updateFromCache());
     }
     /**
      * Map Hikvision arming state to HomeKit SecuritySystemCurrentState
@@ -70,7 +73,7 @@ class SecuritySystemAccessory {
      */
     async getCurrentState() {
         try {
-            const subsystems = this.platform.getCachedSubsystems();
+            const subsystems = this.cacheManager.getCachedSubsystems();
             const subsystem = subsystems.find((s) => s.id === this.accessory.context.device.id);
             if (subsystem) {
                 const state = this.mapArmingStateToCurrentState(subsystem.arming);
@@ -90,7 +93,7 @@ class SecuritySystemAccessory {
      */
     async getTargetState() {
         try {
-            const subsystems = this.platform.getCachedSubsystems();
+            const subsystems = this.cacheManager.getCachedSubsystems();
             const subsystem = subsystems.find((s) => s.id === this.accessory.context.device.id);
             if (subsystem) {
                 const state = this.mapArmingStateToTargetState(subsystem.arming);
@@ -133,7 +136,7 @@ class SecuritySystemAccessory {
             }
             // Update the current state after a short delay
             setTimeout(async () => {
-                await this.platform.updateAllStatuses();
+                await this.cacheManager.forceUpdate();
             }, 1000);
         }
         catch (error) {
@@ -147,7 +150,7 @@ class SecuritySystemAccessory {
      */
     updateFromCache() {
         try {
-            const subsystems = this.platform.getCachedSubsystems();
+            const subsystems = this.cacheManager.getCachedSubsystems();
             const subsystem = subsystems.find((s) => s.id === this.accessory.context.device.id);
             if (subsystem) {
                 const currentState = this.mapArmingStateToCurrentState(subsystem.arming);

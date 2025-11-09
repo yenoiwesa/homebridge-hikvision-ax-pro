@@ -1,5 +1,6 @@
 import type { CharacteristicValue, PlatformAccessory, Service } from 'homebridge';
 import type { HikvisionAxProPlatform } from './platform';
+import type { CacheManager } from './cacheManager';
 import type { ArmingState } from './hikaxpro';
 
 /**
@@ -8,13 +9,12 @@ import type { ArmingState } from './hikaxpro';
  */
 export class SecuritySystemAccessory {
   private readonly service: Service;
-  private readonly platform: HikvisionAxProPlatform;
-  private readonly accessory: PlatformAccessory;
 
-  constructor(platform: HikvisionAxProPlatform, accessory: PlatformAccessory) {
-    this.platform = platform;
-    this.accessory = accessory;
-
+  constructor(
+    private readonly platform: HikvisionAxProPlatform,
+    private readonly accessory: PlatformAccessory,
+    private readonly cacheManager: CacheManager
+  ) {
     // Set accessory information
     this.accessory
       .getService(this.platform.Service.AccessoryInformation)!
@@ -45,6 +45,9 @@ export class SecuritySystemAccessory {
       .getCharacteristic(this.platform.Characteristic.SecuritySystemTargetState)
       .onGet(this.getTargetState.bind(this))
       .onSet(this.setTargetState.bind(this));
+
+    // Register for cache updates
+    this.cacheManager.onUpdate(() => this.updateFromCache());
   }
 
   /**
@@ -89,7 +92,7 @@ export class SecuritySystemAccessory {
    */
   async getCurrentState(): Promise<CharacteristicValue> {
     try {
-      const subsystems = this.platform.getCachedSubsystems();
+      const subsystems = this.cacheManager.getCachedSubsystems();
       const subsystem = subsystems.find((s) => s.id === this.accessory.context.device.id);
 
       if (subsystem) {
@@ -114,7 +117,7 @@ export class SecuritySystemAccessory {
    */
   async getTargetState(): Promise<CharacteristicValue> {
     try {
-      const subsystems = this.platform.getCachedSubsystems();
+      const subsystems = this.cacheManager.getCachedSubsystems();
       const subsystem = subsystems.find((s) => s.id === this.accessory.context.device.id);
 
       if (subsystem) {
@@ -166,7 +169,7 @@ export class SecuritySystemAccessory {
 
       // Update the current state after a short delay
       setTimeout(async () => {
-        await this.platform.updateAllStatuses();
+        await this.cacheManager.forceUpdate();
       }, 1000);
     } catch (error) {
       const err = error as Error;
@@ -180,9 +183,9 @@ export class SecuritySystemAccessory {
   /**
    * Update HomeKit characteristics from cached data
    */
-  public updateFromCache() {
+  private updateFromCache() {
     try {
-      const subsystems = this.platform.getCachedSubsystems();
+      const subsystems = this.cacheManager.getCachedSubsystems();
       const subsystem = subsystems.find((s) => s.id === this.accessory.context.device.id);
 
       if (subsystem) {

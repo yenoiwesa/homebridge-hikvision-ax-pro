@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.HikvisionAxProPlatform = void 0;
 const hikaxpro_1 = require("./hikaxpro");
+const cacheManager_1 = require("./cacheManager");
 const securitySystemAccessory_1 = require("./securitySystemAccessory");
 const motionSensorAccessory_1 = require("./motionSensorAccessory");
 const settings_1 = require("./settings");
@@ -16,12 +17,6 @@ class HikvisionAxProPlatform {
         this.config = config;
         this.api = api;
         this.accessories = new Map();
-        // Cached status data shared by all accessories
-        this.cachedSubsystems = [];
-        this.cachedZones = [];
-        // Store accessory instances for update notifications
-        this.securitySystemAccessories = [];
-        this.motionSensorAccessories = [];
         this.Service = api.hap.Service;
         this.Characteristic = api.hap.Characteristic;
         // Validate configuration
@@ -36,79 +31,17 @@ class HikvisionAxProPlatform {
             password: config.password,
             userLevel: config.userLevel || 1,
         });
-        this.pollingInterval = config.pollingInterval || 5000;
+        // Initialize cache manager
+        const pollingInterval = config.pollingInterval || 5000;
+        this.cacheManager = new cacheManager_1.CacheManager(this.hikaxpro, pollingInterval, this.log);
         this.log.debug('Finished initializing platform');
         // Register accessories when Homebridge finishes launching
         this.api.on('didFinishLaunching', () => {
             log.debug('Executed didFinishLaunching callback');
             this.discoverDevices();
             // Start centralized polling after devices are discovered
-            this.startPolling();
+            this.cacheManager.startPolling();
         });
-    }
-    /**
-     * Get cached subsystem statuses (shared by all security system accessories)
-     */
-    getCachedSubsystems() {
-        return this.cachedSubsystems;
-    }
-    /**
-     * Get cached zone statuses (shared by all motion sensor accessories)
-     */
-    getCachedZones() {
-        return this.cachedZones;
-    }
-    /**
-     * Start centralized polling - all accessories share these results
-     */
-    startPolling() {
-        this.pollingTimer = setInterval(() => {
-            this.updateAllStatuses();
-        }, this.pollingInterval);
-        // Initial update
-        this.updateAllStatuses();
-    }
-    /**
-     * Update all statuses from the panel (called once per polling interval)
-     * This method is also exposed publicly for accessories to trigger immediate updates
-     */
-    async updateAllStatuses() {
-        try {
-            // Single API call for all subsystems
-            this.cachedSubsystems = await this.hikaxpro.fetchSubsystemStatuses();
-            // Single API call for all zones
-            this.cachedZones = await this.hikaxpro.fetchZoneStatuses();
-            this.log.debug(`Polled: ${this.cachedSubsystems.length} subsystems, ${this.cachedZones.length} zones`);
-            // Notify all accessories to update their characteristics
-            this.notifyAccessories();
-        }
-        catch (error) {
-            const err = error;
-            this.log.error(`Failed to update statuses: ${err.message}`);
-        }
-    }
-    /**
-     * Notify all accessories to update their HomeKit characteristics with cached data
-     */
-    notifyAccessories() {
-        for (const accessory of this.securitySystemAccessories) {
-            accessory.updateFromCache();
-        }
-        for (const accessory of this.motionSensorAccessories) {
-            accessory.updateFromCache();
-        }
-    }
-    /**
-     * Register a security system accessory for update notifications
-     */
-    registerSecuritySystemAccessory(accessory) {
-        this.securitySystemAccessories.push(accessory);
-    }
-    /**
-     * Register a motion sensor accessory for update notifications
-     */
-    registerMotionSensorAccessory(accessory) {
-        this.motionSensorAccessories.push(accessory);
     }
     /**
      * Restore cached accessories from disk at startup.
@@ -134,15 +67,13 @@ class HikvisionAxProPlatform {
                     this.log.info('Restoring existing security system from cache:', existingAccessory.displayName);
                     existingAccessory.context.device = subsystem;
                     this.api.updatePlatformAccessories([existingAccessory]);
-                    const accessory = new securitySystemAccessory_1.SecuritySystemAccessory(this, existingAccessory);
-                    this.registerSecuritySystemAccessory(accessory);
+                    new securitySystemAccessory_1.SecuritySystemAccessory(this, existingAccessory, this.cacheManager);
                 }
                 else {
                     this.log.info('Adding new security system:', subsystem.name);
                     const accessory = new this.api.platformAccessory(subsystem.name, uuid);
                     accessory.context.device = subsystem;
-                    const securityAccessory = new securitySystemAccessory_1.SecuritySystemAccessory(this, accessory);
-                    this.registerSecuritySystemAccessory(securityAccessory);
+                    new securitySystemAccessory_1.SecuritySystemAccessory(this, accessory, this.cacheManager);
                     this.api.registerPlatformAccessories(settings_1.PLUGIN_NAME, settings_1.PLATFORM_NAME, [accessory]);
                 }
             }
@@ -154,15 +85,13 @@ class HikvisionAxProPlatform {
                     this.log.info('Restoring existing motion sensor from cache:', existingAccessory.displayName);
                     existingAccessory.context.device = zone;
                     this.api.updatePlatformAccessories([existingAccessory]);
-                    const accessory = new motionSensorAccessory_1.MotionSensorAccessory(this, existingAccessory);
-                    this.registerMotionSensorAccessory(accessory);
+                    new motionSensorAccessory_1.MotionSensorAccessory(this, existingAccessory, this.cacheManager);
                 }
                 else {
                     this.log.info('Adding new motion sensor:', zone.name);
                     const accessory = new this.api.platformAccessory(zone.name, uuid);
                     accessory.context.device = zone;
-                    const motionAccessory = new motionSensorAccessory_1.MotionSensorAccessory(this, accessory);
-                    this.registerMotionSensorAccessory(motionAccessory);
+                    new motionSensorAccessory_1.MotionSensorAccessory(this, accessory, this.cacheManager);
                     this.api.registerPlatformAccessories(settings_1.PLUGIN_NAME, settings_1.PLATFORM_NAME, [accessory]);
                 }
             }

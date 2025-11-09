@@ -6,9 +6,10 @@ exports.MotionSensorAccessory = void 0;
  * Represents a Hikvision AX Pro zone as a HomeKit MotionSensor
  */
 class MotionSensorAccessory {
-    constructor(platform, accessory) {
+    constructor(platform, accessory, cacheManager) {
         this.platform = platform;
         this.accessory = accessory;
+        this.cacheManager = cacheManager;
         // Set accessory information
         this.accessory
             .getService(this.platform.Service.AccessoryInformation)
@@ -24,13 +25,15 @@ class MotionSensorAccessory {
         this.service
             .getCharacteristic(this.platform.Characteristic.MotionDetected)
             .onGet(this.getMotionDetected.bind(this));
+        // Register for cache updates
+        this.cacheManager.onUpdate(() => this.updateFromCache());
     }
     /**
      * Get motion detected state from cached data
      */
     async getMotionDetected() {
         try {
-            const zones = this.platform.getCachedZones();
+            const zones = this.cacheManager.getCachedZones();
             const zone = zones.find((z) => z.id === this.accessory.context.device.id);
             if (zone) {
                 const isTriggered = zone.status === 'trigger';
@@ -50,7 +53,7 @@ class MotionSensorAccessory {
      */
     updateFromCache() {
         try {
-            const zones = this.platform.getCachedZones();
+            const zones = this.cacheManager.getCachedZones();
             const zone = zones.find((z) => z.id === this.accessory.context.device.id);
             if (zone) {
                 const isTriggered = zone.status === 'trigger';
