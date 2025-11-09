@@ -1,4 +1,4 @@
-import { HikAxPro } from './hikaxpro';
+import { HikAxPro } from '../src/hikaxpro';
 
 const HOST = process.env.HIKAXPRO_HOST || '192.168.1.120';
 const USERNAME = process.env.HIKAXPRO_USERNAME || 'admin';
@@ -20,14 +20,14 @@ async function testArmDisarm(): Promise<void> {
       console.log(`Subsystem ${s.id} (${s.name}): ${s.arming}`);
     });
 
-    // Arm away first - COMMENTED OUT
-    // try {
-    //   const armResult = await axpro.armAway();
-    //   console.log('Arm away result:', JSON.stringify(armResult));
-    // } catch (e) {
-    //   const error = e as Error;
-    //   console.warn('Arm away attempt failed:', error.message);
-    // }
+    // Arm stay first
+    try {
+      const armResult = await axpro.armStay(1);
+      console.log('Arm stay result:', JSON.stringify(armResult));
+    } catch (e) {
+      const error = e as Error;
+      console.warn('Arm stay attempt failed:', error.message);
+    }
 
     // Check status after arming
     const subsystemsAfterArm = await axpro.fetchSubsystemStatuses();
@@ -37,7 +37,7 @@ async function testArmDisarm(): Promise<void> {
 
     // Always disarm regardless of current state
     try {
-      const disarmResult = await axpro.disarm();
+      const disarmResult = await axpro.disarm(1);
       console.log('Disarm result:', JSON.stringify(disarmResult));
     } catch (e) {
       const error = e as Error;

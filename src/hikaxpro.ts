@@ -246,7 +246,7 @@ export class HikAxPro {
     }
 
     if (response.status < 200 || response.status >= 300) {
-      throw new Error(`Request failed: ${response.status} ${response.data ?? ''}`);
+      throw new Error(`Request failed: ${response.status} ${JSON.stringify(response.data) ?? ''}`);
     }
     return response.data;
   }
