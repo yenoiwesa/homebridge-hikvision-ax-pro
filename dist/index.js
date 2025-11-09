@@ -14,47 +14,50 @@ async function main() {
     });
     try {
         // First request will trigger automatic login via sendRequest.
-        globalThis.console.log('Attempting automatic login on first request...');
+        console.log('Attempting automatic login on first request...');
         const subsystems = await axpro.fetchSubsystemStatuses();
         subsystems.forEach((s) => {
-            globalThis.console.log(`Subsystem ${s.id} (${s.name}): ${s.arming}`);
+            console.log(`Subsystem ${s.id} (${s.name}): ${s.arming}`);
         });
         // Arm away first
         try {
             const armResult = await axpro.armAway();
-            globalThis.console.log('Arm away result:', JSON.stringify(armResult));
+            console.log('Arm away result:', JSON.stringify(armResult));
         }
         catch (e) {
-            globalThis.console.warn('Arm away attempt failed:', e.message);
+            const error = e;
+            console.warn('Arm away attempt failed:', error.message);
         }
         // Check status after arming
         const subsystemsAfterArm = await axpro.fetchSubsystemStatuses();
         subsystemsAfterArm.forEach((s) => {
-            globalThis.console.log(`After arm - Subsystem ${s.id} (${s.name}): ${s.arming}`);
+            console.log(`After arm - Subsystem ${s.id} (${s.name}): ${s.arming}`);
         });
         // Always disarm regardless of current state
         try {
             const disarmResult = await axpro.disarm();
-            globalThis.console.log('Disarm result:', JSON.stringify(disarmResult));
+            console.log('Disarm result:', JSON.stringify(disarmResult));
         }
         catch (e) {
-            globalThis.console.warn('Disarm attempt failed:', e.message);
+            const error = e;
+            console.warn('Disarm attempt failed:', error.message);
         }
         for (let i = 0; i < 60; i++) {
             const zones = await axpro.fetchZoneStatuses();
             const triggered = zones.filter((z) => z.status === 'trigger');
             if (triggered.length > 0) {
                 triggered.forEach((z) => {
-                    globalThis.console.log(`${z.name} triggered (time: ${new Date().toISOString()})`);
+                    console.log(`${z.name} triggered (time: ${new Date().toISOString()})`);
                 });
             }
             if (i < 59) {
-                await new Promise((resolve) => globalThis.setTimeout(resolve, 1000));
+                await new Promise((resolve) => setTimeout(resolve, 1000));
             }
         }
     }
     catch (err) {
-        globalThis.console.error('Error:', err.message);
+        const error = err;
+        console.error('Error:', error.message);
     }
 }
 if (require.main === module) {

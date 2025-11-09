@@ -13,8 +13,13 @@ const ENDPOINTS = {
   Alarm_Disarm: '/ISAPI/SecurityCP/control/disarm/{}',
   Alarm_ArmAway: '/ISAPI/SecurityCP/control/arm/{}?ways=away',
   Alarm_ArmHome: '/ISAPI/SecurityCP/control/arm/{}?ways=stay',
-};
-const XML_SCHEMA = 'http://www.hikvision.com/ver20/XMLSchema';
+} as const;
+
+const XML_SCHEMA = 'http://www.hikvision.com/ver20/XMLSchema' as const;
+const SUBSYSTEM_WILDCARD = '0xffffffff' as const;
+
+export type ArmingState = 'disarm' | 'away' | 'stay' | 'arming' | 'disarming';
+export type ZoneStatusType = 'normal' | 'trigger' | 'tamper' | 'fault' | 'bypass';
 
 export interface HikAxProOptions {
   host: string;
@@ -26,20 +31,48 @@ export interface HikAxProOptions {
 export interface SubsystemStatus {
   id: string;
   name: string;
-  arming: string;
+  arming: ArmingState;
 }
 
 export interface ZoneStatus {
   id: string;
   name: string;
-  status: string;
+  status: ZoneStatusType;
+}
+
+export interface ArmDisarmResponse {
+  statusCode: number;
+  statusString: string;
+  subStatusCode: string;
+  errorCode: number;
+  errorMsg: string;
+}
+
+interface SessionParams {
+  sessionID: string;
+  sessionIDVersion: string;
+  challenge: string;
+  salt: string;
+  salt2: string;
+  isIrreversible: boolean;
+  iterations: number;
+}
+
+interface SubSystemResponse {
+  SubSysList?: Array<{
+    SubSys?: { id: string; name: string; arming: ArmingState; enabled: boolean };
+  }>;
+}
+
+interface ZoneResponse {
+  ZoneList?: Array<{ Zone?: { id: string; name: string; status: ZoneStatusType } }>;
 }
 
 export class HikAxPro {
-  host: string;
-  username: string;
-  password: string;
-  userLevel: number;
+  private readonly host: string;
+  private readonly username: string;
+  private readonly password: string;
+  private readonly userLevel: number;
 
   // Session cookie for authenticated requests
   private cookie: string | null = null;
@@ -75,7 +108,7 @@ export class HikAxPro {
     return crypto.createHash('sha256').update(data).digest('hex');
   }
 
-  private async getSessionParams(): Promise<any> {
+  private async getSessionParams(): Promise<SessionParams> {
     const url = `http://${this.host}${ENDPOINTS.Session_Capabilities}${encodeURIComponent(this.username)}`;
     const headers = this.getRequestHeaders();
     const response = await axios.get(url, { headers });
@@ -93,7 +126,7 @@ export class HikAxPro {
     };
   }
 
-  private encodePassword(params: any): string {
+  private encodePassword(params: SessionParams): string {
     const { sessionIDVersion, isIrreversible, salt, salt2, challenge, iterations } = params;
     let result: string;
     if (sessionIDVersion === '2' && isIrreversible) {
@@ -178,10 +211,10 @@ export class HikAxPro {
    * @param data Optional request body (for POST/PUT/etc.)
    * @param extraHeaders Optional extra headers to merge
    */
-  private async sendRequest<T = any>(
+  private async sendRequest<T>(
     method: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH',
     endpoint: string,
-    data?: any,
+    data?: unknown,
     extraHeaders: Record<string, string> = {}
   ): Promise<T> {
     // Ensure endpoint formatting
@@ -195,7 +228,7 @@ export class HikAxPro {
       await this.loginPromise;
     }
 
-    const attempt = async (): Promise<AxiosResponse<any>> => {
+    const attempt = async (): Promise<AxiosResponse<T>> => {
       const url = `http://${this.host}${endpoint}`;
       const headers = { ...this.getRequestHeaders(), ...extraHeaders };
       return axios({ method, url, data, headers, validateStatus: () => true });
@@ -215,19 +248,22 @@ export class HikAxPro {
     if (response.status < 200 || response.status >= 300) {
       throw new Error(`Request failed: ${response.status} ${response.data ?? ''}`);
     }
-    return response.data as T;
+    return response.data;
   }
 
   /**
    * Fetch subsystem statuses from the /ISAPI/SecurityCP/status/subSystems endpoint.
    */
   async fetchSubsystemStatuses(): Promise<SubsystemStatus[]> {
-    const data = await this.sendRequest<any>('GET', `${ENDPOINTS.SubSystems}?format=json`);
+    const data = await this.sendRequest<SubSystemResponse>(
+      'GET',
+      `${ENDPOINTS.SubSystems}?format=json`
+    );
     const subsystems = data?.SubSysList || [];
     return subsystems
-      .map((s: any) => s.SubSys)
-      .filter((s: any) => s && s.enabled)
-      .map((s: any) => ({
+      .map((s) => s.SubSys)
+      .filter((s): s is NonNullable<typeof s> => s !== undefined && s.enabled)
+      .map((s) => ({
         id: s.id,
         name: s.name,
         arming: s.arming,
@@ -238,12 +274,12 @@ export class HikAxPro {
    * Fetch zone statuses from the /ISAPI/SecurityCP/status/zones endpoint.
    */
   async fetchZoneStatuses(): Promise<ZoneStatus[]> {
-    const data = await this.sendRequest<any>('GET', `${ENDPOINTS.Zones}?format=json`);
+    const data = await this.sendRequest<ZoneResponse>('GET', `${ENDPOINTS.Zones}?format=json`);
     const zones = data?.ZoneList || [];
     return zones
-      .map((z: any) => z.Zone)
-      .filter((z: any) => z)
-      .map((z: any) => ({
+      .map((z) => z.Zone)
+      .filter((z): z is NonNullable<typeof z> => z !== undefined)
+      .map((z) => ({
         id: z.id,
         name: z.name,
         status: z.status,
@@ -251,54 +287,52 @@ export class HikAxPro {
   }
 
   /**
-   * Arm subsystem in STAY/HOME mode. If subsystemId omitted, uses wildcard 0xffffffff (all / default).
-   * Optional code will be sent for modules requiring authorization.
+   * Internal helper to execute arm/disarm operations with consistent logic.
    */
-  async armStay(subsystemId?: string | number, code?: string): Promise<any> {
-    const sid = subsystemId ?? '0xffffffff';
-    const endpoint = HikAxPro.withJsonFormat(
-      HikAxPro.fillSubsystemEndpoint(ENDPOINTS.Alarm_ArmHome, sid)
-    );
+  private async executeArmDisarmOperation(
+    endpoint: string,
+    code?: string
+  ): Promise<ArmDisarmResponse> {
     const body = code ? { Operate: { moduleOperateCode: code } } : undefined;
-    return this.sendRequest<any>(
+    return this.sendRequest<ArmDisarmResponse>(
       'PUT',
       endpoint,
       body,
       body ? { 'Content-Type': 'application/json' } : {}
     );
+  }
+
+  /**
+   * Arm subsystem in STAY/HOME mode. If subsystemId omitted, uses wildcard 0xffffffff (all / default).
+   * Optional code will be sent for modules requiring authorization.
+   */
+  async armStay(subsystemId?: string | number, code?: string): Promise<ArmDisarmResponse> {
+    const sid = subsystemId ?? SUBSYSTEM_WILDCARD;
+    const endpoint = HikAxPro.withJsonFormat(
+      HikAxPro.fillSubsystemEndpoint(ENDPOINTS.Alarm_ArmHome, sid)
+    );
+    return this.executeArmDisarmOperation(endpoint, code);
   }
 
   /**
    * Arm subsystem in AWAY mode. If subsystemId omitted, uses wildcard 0xffffffff.
    */
-  async armAway(subsystemId?: string | number, code?: string): Promise<any> {
-    const sid = subsystemId ?? '0xffffffff';
+  async armAway(subsystemId?: string | number, code?: string): Promise<ArmDisarmResponse> {
+    const sid = subsystemId ?? SUBSYSTEM_WILDCARD;
     const endpoint = HikAxPro.withJsonFormat(
       HikAxPro.fillSubsystemEndpoint(ENDPOINTS.Alarm_ArmAway, sid)
     );
-    const body = code ? { Operate: { moduleOperateCode: code } } : undefined;
-    return this.sendRequest<any>(
-      'PUT',
-      endpoint,
-      body,
-      body ? { 'Content-Type': 'application/json' } : {}
-    );
+    return this.executeArmDisarmOperation(endpoint, code);
   }
 
   /**
    * Disarm subsystem. If subsystemId omitted, uses wildcard 0xffffffff.
    */
-  async disarm(subsystemId?: string | number, code?: string): Promise<any> {
-    const sid = subsystemId ?? '0xffffffff';
+  async disarm(subsystemId?: string | number, code?: string): Promise<ArmDisarmResponse> {
+    const sid = subsystemId ?? SUBSYSTEM_WILDCARD;
     const endpoint = HikAxPro.withJsonFormat(
       HikAxPro.fillSubsystemEndpoint(ENDPOINTS.Alarm_Disarm, sid)
     );
-    const body = code ? { Operate: { moduleOperateCode: code } } : undefined;
-    return this.sendRequest<any>(
-      'PUT',
-      endpoint,
-      body,
-      body ? { 'Content-Type': 'application/json' } : {}
-    );
+    return this.executeArmDisarmOperation(endpoint, code);
   }
 }
