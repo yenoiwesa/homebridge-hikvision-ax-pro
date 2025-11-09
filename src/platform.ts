@@ -8,7 +8,7 @@ import type {
   Service,
 } from 'homebridge';
 
-import { HikAxPro } from './hikaxpro';
+import { HikAxPro, SubsystemStatus, ZoneStatus } from './hikaxpro';
 import { SecuritySystemAccessory } from './securitySystemAccessory';
 import { MotionSensorAccessory } from './motionSensorAccessory';
 import { PLATFORM_NAME, PLUGIN_NAME } from './settings';
@@ -32,6 +32,15 @@ export class HikvisionAxProPlatform implements DynamicPlatformPlugin {
   public readonly accessories: Map<string, PlatformAccessory> = new Map();
   public readonly hikaxpro!: HikAxPro;
   public readonly pollingInterval!: number;
+  private pollingTimer?: NodeJS.Timeout;
+
+  // Cached status data shared by all accessories
+  private cachedSubsystems: SubsystemStatus[] = [];
+  private cachedZones: ZoneStatus[] = [];
+
+  // Store accessory instances for update notifications
+  private securitySystemAccessories: SecuritySystemAccessory[] = [];
+  private motionSensorAccessories: MotionSensorAccessory[] = [];
 
   constructor(
     public readonly log: Logger,
@@ -63,7 +72,85 @@ export class HikvisionAxProPlatform implements DynamicPlatformPlugin {
     this.api.on('didFinishLaunching', () => {
       log.debug('Executed didFinishLaunching callback');
       this.discoverDevices();
+      // Start centralized polling after devices are discovered
+      this.startPolling();
     });
+  }
+
+  /**
+   * Get cached subsystem statuses (shared by all security system accessories)
+   */
+  public getCachedSubsystems(): SubsystemStatus[] {
+    return this.cachedSubsystems;
+  }
+
+  /**
+   * Get cached zone statuses (shared by all motion sensor accessories)
+   */
+  public getCachedZones(): ZoneStatus[] {
+    return this.cachedZones;
+  }
+
+  /**
+   * Start centralized polling - all accessories share these results
+   */
+  private startPolling() {
+    this.pollingTimer = setInterval(() => {
+      this.updateAllStatuses();
+    }, this.pollingInterval);
+
+    // Initial update
+    this.updateAllStatuses();
+  }
+
+  /**
+   * Update all statuses from the panel (called once per polling interval)
+   * This method is also exposed publicly for accessories to trigger immediate updates
+   */
+  public async updateAllStatuses() {
+    try {
+      // Single API call for all subsystems
+      this.cachedSubsystems = await this.hikaxpro.fetchSubsystemStatuses();
+
+      // Single API call for all zones
+      this.cachedZones = await this.hikaxpro.fetchZoneStatuses();
+
+      this.log.debug(
+        `Polled: ${this.cachedSubsystems.length} subsystems, ${this.cachedZones.length} zones`
+      );
+
+      // Notify all accessories to update their characteristics
+      this.notifyAccessories();
+    } catch (error) {
+      const err = error as Error;
+      this.log.error(`Failed to update statuses: ${err.message}`);
+    }
+  }
+
+  /**
+   * Notify all accessories to update their HomeKit characteristics with cached data
+   */
+  private notifyAccessories() {
+    for (const accessory of this.securitySystemAccessories) {
+      accessory.updateFromCache();
+    }
+    for (const accessory of this.motionSensorAccessories) {
+      accessory.updateFromCache();
+    }
+  }
+
+  /**
+   * Register a security system accessory for update notifications
+   */
+  public registerSecuritySystemAccessory(accessory: SecuritySystemAccessory) {
+    this.securitySystemAccessories.push(accessory);
+  }
+
+  /**
+   * Register a motion sensor accessory for update notifications
+   */
+  public registerMotionSensorAccessory(accessory: MotionSensorAccessory) {
+    this.motionSensorAccessories.push(accessory);
   }
 
   /**
@@ -97,12 +184,14 @@ export class HikvisionAxProPlatform implements DynamicPlatformPlugin {
           );
           existingAccessory.context.device = subsystem;
           this.api.updatePlatformAccessories([existingAccessory]);
-          new SecuritySystemAccessory(this, existingAccessory);
+          const accessory = new SecuritySystemAccessory(this, existingAccessory);
+          this.registerSecuritySystemAccessory(accessory);
         } else {
           this.log.info('Adding new security system:', subsystem.name);
           const accessory = new this.api.platformAccessory(subsystem.name, uuid);
           accessory.context.device = subsystem;
-          new SecuritySystemAccessory(this, accessory);
+          const securityAccessory = new SecuritySystemAccessory(this, accessory);
+          this.registerSecuritySystemAccessory(securityAccessory);
           this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
         }
       }
@@ -119,12 +208,14 @@ export class HikvisionAxProPlatform implements DynamicPlatformPlugin {
           );
           existingAccessory.context.device = zone;
           this.api.updatePlatformAccessories([existingAccessory]);
-          new MotionSensorAccessory(this, existingAccessory);
+          const accessory = new MotionSensorAccessory(this, existingAccessory);
+          this.registerMotionSensorAccessory(accessory);
         } else {
           this.log.info('Adding new motion sensor:', zone.name);
           const accessory = new this.api.platformAccessory(zone.name, uuid);
           accessory.context.device = zone;
-          new MotionSensorAccessory(this, accessory);
+          const motionAccessory = new MotionSensorAccessory(this, accessory);
+          this.registerMotionSensorAccessory(motionAccessory);
           this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
         }
       }

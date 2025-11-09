@@ -29,8 +29,6 @@ class SecuritySystemAccessory {
             .getCharacteristic(this.platform.Characteristic.SecuritySystemTargetState)
             .onGet(this.getTargetState.bind(this))
             .onSet(this.setTargetState.bind(this));
-        // Start polling for status updates
-        this.startPolling();
     }
     /**
      * Map Hikvision arming state to HomeKit SecuritySystemCurrentState
@@ -68,11 +66,11 @@ class SecuritySystemAccessory {
         }
     }
     /**
-     * Get current security system state
+     * Get current security system state from cached data
      */
     async getCurrentState() {
         try {
-            const subsystems = await this.platform.hikaxpro.fetchSubsystemStatuses();
+            const subsystems = this.platform.getCachedSubsystems();
             const subsystem = subsystems.find((s) => s.id === this.accessory.context.device.id);
             if (subsystem) {
                 const state = this.mapArmingStateToCurrentState(subsystem.arming);
@@ -88,11 +86,11 @@ class SecuritySystemAccessory {
         return this.platform.Characteristic.SecuritySystemCurrentState.DISARMED;
     }
     /**
-     * Get target security system state
+     * Get target security system state from cached data
      */
     async getTargetState() {
         try {
-            const subsystems = await this.platform.hikaxpro.fetchSubsystemStatuses();
+            const subsystems = this.platform.getCachedSubsystems();
             const subsystem = subsystems.find((s) => s.id === this.accessory.context.device.id);
             if (subsystem) {
                 const state = this.mapArmingStateToTargetState(subsystem.arming);
@@ -134,8 +132,8 @@ class SecuritySystemAccessory {
                     break;
             }
             // Update the current state after a short delay
-            setTimeout(() => {
-                this.updateCurrentState();
+            setTimeout(async () => {
+                await this.platform.updateAllStatuses();
             }, 1000);
         }
         catch (error) {
@@ -145,32 +143,22 @@ class SecuritySystemAccessory {
         }
     }
     /**
-     * Poll the panel for status updates
+     * Update HomeKit characteristics from cached data
      */
-    startPolling() {
-        this.pollingTimer = setInterval(() => {
-            this.updateCurrentState();
-        }, this.platform.pollingInterval);
-        // Initial update
-        this.updateCurrentState();
-    }
-    /**
-     * Update the current state characteristic
-     */
-    async updateCurrentState() {
+    updateFromCache() {
         try {
-            const subsystems = await this.platform.hikaxpro.fetchSubsystemStatuses();
+            const subsystems = this.platform.getCachedSubsystems();
             const subsystem = subsystems.find((s) => s.id === this.accessory.context.device.id);
             if (subsystem) {
                 const currentState = this.mapArmingStateToCurrentState(subsystem.arming);
-                this.service.updateCharacteristic(this.platform.Characteristic.SecuritySystemCurrentState, currentState);
                 const targetState = this.mapArmingStateToTargetState(subsystem.arming);
+                this.service.updateCharacteristic(this.platform.Characteristic.SecuritySystemCurrentState, currentState);
                 this.service.updateCharacteristic(this.platform.Characteristic.SecuritySystemTargetState, targetState);
             }
         }
         catch (error) {
             const err = error;
-            this.platform.log.debug(`Failed to update current state: ${err.message}`);
+            this.platform.log.debug(`Failed to update from cache: ${err.message}`);
         }
     }
 }

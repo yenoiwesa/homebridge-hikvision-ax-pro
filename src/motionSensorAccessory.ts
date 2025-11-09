@@ -1,6 +1,5 @@
 import type { CharacteristicValue, PlatformAccessory, Service } from 'homebridge';
 import type { HikvisionAxProPlatform } from './platform';
-import type { ZoneStatus } from './hikaxpro';
 
 /**
  * Motion Sensor Accessory
@@ -8,7 +7,6 @@ import type { ZoneStatus } from './hikaxpro';
  */
 export class MotionSensorAccessory {
   private service: Service;
-  private pollingTimer?: NodeJS.Timeout;
 
   constructor(
     private readonly platform: HikvisionAxProPlatform,
@@ -38,17 +36,14 @@ export class MotionSensorAccessory {
     this.service
       .getCharacteristic(this.platform.Characteristic.MotionDetected)
       .onGet(this.getMotionDetected.bind(this));
-
-    // Start polling for status updates
-    this.startPolling();
   }
 
   /**
-   * Get motion detected state
+   * Get motion detected state from cached data
    */
   async getMotionDetected(): Promise<CharacteristicValue> {
     try {
-      const zones = await this.platform.hikaxpro.fetchZoneStatuses();
+      const zones = this.platform.getCachedZones();
       const zone = zones.find((z) => z.id === this.accessory.context.device.id);
 
       if (zone) {
@@ -69,23 +64,11 @@ export class MotionSensorAccessory {
   }
 
   /**
-   * Poll the panel for zone status updates
+   * Update HomeKit characteristic from cached data
    */
-  private startPolling() {
-    this.pollingTimer = setInterval(() => {
-      this.updateMotionState();
-    }, this.platform.pollingInterval);
-
-    // Initial update
-    this.updateMotionState();
-  }
-
-  /**
-   * Update the motion detected characteristic
-   */
-  private async updateMotionState() {
+  public updateFromCache() {
     try {
-      const zones = await this.platform.hikaxpro.fetchZoneStatuses();
+      const zones = this.platform.getCachedZones();
       const zone = zones.find((z) => z.id === this.accessory.context.device.id);
 
       if (zone) {
@@ -94,7 +77,7 @@ export class MotionSensorAccessory {
       }
     } catch (error) {
       const err = error as Error;
-      this.platform.log.debug(`Failed to update motion state: ${err.message}`);
+      this.platform.log.debug(`Failed to update from cache: ${err.message}`);
     }
   }
 }

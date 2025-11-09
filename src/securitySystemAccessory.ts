@@ -1,6 +1,6 @@
 import type { CharacteristicValue, PlatformAccessory, Service } from 'homebridge';
 import type { HikvisionAxProPlatform } from './platform';
-import type { SubsystemStatus, ArmingState } from './hikaxpro';
+import type { ArmingState } from './hikaxpro';
 
 /**
  * Security System Accessory
@@ -8,7 +8,6 @@ import type { SubsystemStatus, ArmingState } from './hikaxpro';
  */
 export class SecuritySystemAccessory {
   private service: Service;
-  private pollingTimer?: NodeJS.Timeout;
 
   constructor(
     private readonly platform: HikvisionAxProPlatform,
@@ -44,9 +43,6 @@ export class SecuritySystemAccessory {
       .getCharacteristic(this.platform.Characteristic.SecuritySystemTargetState)
       .onGet(this.getTargetState.bind(this))
       .onSet(this.setTargetState.bind(this));
-
-    // Start polling for status updates
-    this.startPolling();
   }
 
   /**
@@ -87,11 +83,11 @@ export class SecuritySystemAccessory {
   }
 
   /**
-   * Get current security system state
+   * Get current security system state from cached data
    */
   async getCurrentState(): Promise<CharacteristicValue> {
     try {
-      const subsystems = await this.platform.hikaxpro.fetchSubsystemStatuses();
+      const subsystems = this.platform.getCachedSubsystems();
       const subsystem = subsystems.find((s) => s.id === this.accessory.context.device.id);
 
       if (subsystem) {
@@ -112,11 +108,11 @@ export class SecuritySystemAccessory {
   }
 
   /**
-   * Get target security system state
+   * Get target security system state from cached data
    */
   async getTargetState(): Promise<CharacteristicValue> {
     try {
-      const subsystems = await this.platform.hikaxpro.fetchSubsystemStatuses();
+      const subsystems = this.platform.getCachedSubsystems();
       const subsystem = subsystems.find((s) => s.id === this.accessory.context.device.id);
 
       if (subsystem) {
@@ -167,8 +163,8 @@ export class SecuritySystemAccessory {
       }
 
       // Update the current state after a short delay
-      setTimeout(() => {
-        this.updateCurrentState();
+      setTimeout(async () => {
+        await this.platform.updateAllStatuses();
       }, 1000);
     } catch (error) {
       const err = error as Error;
@@ -180,33 +176,21 @@ export class SecuritySystemAccessory {
   }
 
   /**
-   * Poll the panel for status updates
+   * Update HomeKit characteristics from cached data
    */
-  private startPolling() {
-    this.pollingTimer = setInterval(() => {
-      this.updateCurrentState();
-    }, this.platform.pollingInterval);
-
-    // Initial update
-    this.updateCurrentState();
-  }
-
-  /**
-   * Update the current state characteristic
-   */
-  private async updateCurrentState() {
+  public updateFromCache() {
     try {
-      const subsystems = await this.platform.hikaxpro.fetchSubsystemStatuses();
+      const subsystems = this.platform.getCachedSubsystems();
       const subsystem = subsystems.find((s) => s.id === this.accessory.context.device.id);
 
       if (subsystem) {
         const currentState = this.mapArmingStateToCurrentState(subsystem.arming);
+        const targetState = this.mapArmingStateToTargetState(subsystem.arming);
+
         this.service.updateCharacteristic(
           this.platform.Characteristic.SecuritySystemCurrentState,
           currentState
         );
-
-        const targetState = this.mapArmingStateToTargetState(subsystem.arming);
         this.service.updateCharacteristic(
           this.platform.Characteristic.SecuritySystemTargetState,
           targetState
@@ -214,7 +198,7 @@ export class SecuritySystemAccessory {
       }
     } catch (error) {
       const err = error as Error;
-      this.platform.log.debug(`Failed to update current state: ${err.message}`);
+      this.platform.log.debug(`Failed to update from cache: ${err.message}`);
     }
   }
 }

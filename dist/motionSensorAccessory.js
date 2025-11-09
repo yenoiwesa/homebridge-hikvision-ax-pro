@@ -24,15 +24,13 @@ class MotionSensorAccessory {
         this.service
             .getCharacteristic(this.platform.Characteristic.MotionDetected)
             .onGet(this.getMotionDetected.bind(this));
-        // Start polling for status updates
-        this.startPolling();
     }
     /**
-     * Get motion detected state
+     * Get motion detected state from cached data
      */
     async getMotionDetected() {
         try {
-            const zones = await this.platform.hikaxpro.fetchZoneStatuses();
+            const zones = this.platform.getCachedZones();
             const zone = zones.find((z) => z.id === this.accessory.context.device.id);
             if (zone) {
                 const isTriggered = zone.status === 'trigger';
@@ -48,21 +46,11 @@ class MotionSensorAccessory {
         return false;
     }
     /**
-     * Poll the panel for zone status updates
+     * Update HomeKit characteristic from cached data
      */
-    startPolling() {
-        this.pollingTimer = setInterval(() => {
-            this.updateMotionState();
-        }, this.platform.pollingInterval);
-        // Initial update
-        this.updateMotionState();
-    }
-    /**
-     * Update the motion detected characteristic
-     */
-    async updateMotionState() {
+    updateFromCache() {
         try {
-            const zones = await this.platform.hikaxpro.fetchZoneStatuses();
+            const zones = this.platform.getCachedZones();
             const zone = zones.find((z) => z.id === this.accessory.context.device.id);
             if (zone) {
                 const isTriggered = zone.status === 'trigger';
@@ -71,7 +59,7 @@ class MotionSensorAccessory {
         }
         catch (error) {
             const err = error;
-            this.platform.log.debug(`Failed to update motion state: ${err.message}`);
+            this.platform.log.debug(`Failed to update from cache: ${err.message}`);
         }
     }
 }
