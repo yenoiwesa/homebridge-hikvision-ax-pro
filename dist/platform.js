@@ -32,7 +32,7 @@ class HikvisionAxProPlatform {
             userLevel: config.userLevel ?? 1,
         });
         // Initialize cache manager
-        const pollingInterval = config.pollingInterval ?? 5000;
+        const pollingInterval = (config.pollingInterval ?? 5) * 1000; // Convert seconds to milliseconds
         this.cacheManager = new cacheManager_1.CacheManager(this.hikaxpro, pollingInterval, this.log);
         this.log.debug('Finished initializing platform');
         // Register accessories when Homebridge finishes launching

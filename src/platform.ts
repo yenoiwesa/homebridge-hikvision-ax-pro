@@ -19,7 +19,7 @@ export interface HikvisionAxProConfig extends PlatformConfig {
   username: string;
   password: string;
   userLevel?: number;
-  pollingInterval?: number; // in milliseconds, default 5000
+  pollingInterval?: number; // in seconds, default 5
 }
 
 /**
@@ -68,7 +68,7 @@ export class HikvisionAxProPlatform implements DynamicPlatformPlugin {
     });
 
     // Initialize cache manager
-    const pollingInterval = config.pollingInterval ?? 5000;
+    const pollingInterval = (config.pollingInterval ?? 5) * 1000; // Convert seconds to milliseconds
     this.cacheManager = new CacheManager(this.hikaxpro, pollingInterval, this.log);
 
     this.log.debug('Finished initializing platform');
