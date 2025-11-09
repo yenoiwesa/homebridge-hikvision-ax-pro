@@ -18,7 +18,7 @@
         "type": "string",
         "required": true,
         "format": "hostname",
-        "placeholder": "192.168.1.120",
+        "placeholder": "192.168.1.1",
         "description": "The IP address or hostname of your Hikvision AX Pro panel."
       },
       "username": {

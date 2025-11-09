@@ -68,6 +68,19 @@ interface ZoneResponse {
   ZoneList?: Array<{ Zone?: { id: string; name: string; status: ZoneStatusType } }>;
 }
 
+/**
+ * Custom error for when switching between arm modes requires disarming first
+ */
+class InvalidArmModeTransitionError extends Error {
+  constructor(
+    message: string,
+    public readonly response: ArmDisarmResponse
+  ) {
+    super(message);
+    this.name = 'InvalidArmModeTransitionError';
+  }
+}
+
 export class HikAxPro {
   private readonly host: string;
   private readonly username: string;
@@ -246,6 +259,21 @@ export class HikAxPro {
     }
 
     if (response.status < 200 || response.status >= 300) {
+      // Check for specific error: Invalid Operation due to armedStatus
+      // This occurs when trying to switch between arm modes without disarming first
+      const responseData = response.data as ArmDisarmResponse;
+      if (
+        responseData &&
+        responseData.statusCode === 4 &&
+        responseData.subStatusCode === 'armedStatus' &&
+        responseData.errorCode === 1073774603
+      ) {
+        throw new InvalidArmModeTransitionError(
+          'Cannot switch between arm modes without disarming first',
+          responseData
+        );
+      }
+
       throw new Error(`Request failed: ${response.status} ${JSON.stringify(response.data) ?? ''}`);
     }
     return response.data;
@@ -288,18 +316,39 @@ export class HikAxPro {
 
   /**
    * Internal helper to execute arm/disarm operations with consistent logic.
+   * Handles the case where switching between arm modes requires disarming first.
    */
   private async executeArmDisarmOperation(
     endpoint: string,
-    code?: string
+    code?: string,
+    subsystemId?: string | number,
+    isRetry = false
   ): Promise<ArmDisarmResponse> {
     const body = code ? { Operate: { moduleOperateCode: code } } : undefined;
-    return this.sendRequest<ArmDisarmResponse>(
-      'PUT',
-      endpoint,
-      body,
-      body ? { 'Content-Type': 'application/json' } : {}
-    );
+
+    try {
+      return await this.sendRequest<ArmDisarmResponse>(
+        'PUT',
+        endpoint,
+        body,
+        body ? { 'Content-Type': 'application/json' } : {}
+      );
+    } catch (error) {
+      // Handle InvalidArmModeTransitionError by disarming first, then retrying
+      if (!isRetry && error instanceof InvalidArmModeTransitionError) {
+        // Disarm first
+        const sid = subsystemId ?? SUBSYSTEM_WILDCARD;
+        const disarmEndpoint = HikAxPro.withJsonFormat(
+          HikAxPro.fillSubsystemEndpoint(ENDPOINTS.Alarm_Disarm, sid)
+        );
+        await this.executeArmDisarmOperation(disarmEndpoint, code, subsystemId, true);
+
+        // Retry the original arm operation
+        return this.executeArmDisarmOperation(endpoint, code, subsystemId, true);
+      }
+
+      throw error;
+    }
   }
 
   /**
@@ -311,7 +360,7 @@ export class HikAxPro {
     const endpoint = HikAxPro.withJsonFormat(
       HikAxPro.fillSubsystemEndpoint(ENDPOINTS.Alarm_ArmHome, sid)
     );
-    return this.executeArmDisarmOperation(endpoint, code);
+    return this.executeArmDisarmOperation(endpoint, code, sid);
   }
 
   /**
@@ -322,7 +371,7 @@ export class HikAxPro {
     const endpoint = HikAxPro.withJsonFormat(
       HikAxPro.fillSubsystemEndpoint(ENDPOINTS.Alarm_ArmAway, sid)
     );
-    return this.executeArmDisarmOperation(endpoint, code);
+    return this.executeArmDisarmOperation(endpoint, code, sid);
   }
 
   /**
@@ -333,6 +382,6 @@ export class HikAxPro {
     const endpoint = HikAxPro.withJsonFormat(
       HikAxPro.fillSubsystemEndpoint(ENDPOINTS.Alarm_Disarm, sid)
     );
-    return this.executeArmDisarmOperation(endpoint, code);
+    return this.executeArmDisarmOperation(endpoint, code, sid);
   }
 }

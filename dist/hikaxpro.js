@@ -20,6 +20,16 @@ const ENDPOINTS = {
 };
 const XML_SCHEMA = 'http://www.hikvision.com/ver20/XMLSchema';
 const SUBSYSTEM_WILDCARD = '0xffffffff';
+/**
+ * Custom error for when switching between arm modes requires disarming first
+ */
+class InvalidArmModeTransitionError extends Error {
+    constructor(message, response) {
+        super(message);
+        this.response = response;
+        this.name = 'InvalidArmModeTransitionError';
+    }
+}
 class HikAxPro {
     constructor({ host, username, password, userLevel = 1 }) {
         // Session cookie for authenticated requests
@@ -171,6 +181,15 @@ class HikAxPro {
             response = await attempt();
         }
         if (response.status < 200 || response.status >= 300) {
+            // Check for specific error: Invalid Operation due to armedStatus
+            // This occurs when trying to switch between arm modes without disarming first
+            const responseData = response.data;
+            if (responseData &&
+                responseData.statusCode === 4 &&
+                responseData.subStatusCode === 'armedStatus' &&
+                responseData.errorCode === 1073774603) {
+                throw new InvalidArmModeTransitionError('Cannot switch between arm modes without disarming first', responseData);
+            }
             throw new Error(`Request failed: ${response.status} ${JSON.stringify(response.data) ?? ''}`);
         }
         return response.data;
@@ -207,10 +226,25 @@ class HikAxPro {
     }
     /**
      * Internal helper to execute arm/disarm operations with consistent logic.
+     * Handles the case where switching between arm modes requires disarming first.
      */
-    async executeArmDisarmOperation(endpoint, code) {
+    async executeArmDisarmOperation(endpoint, code, subsystemId, isRetry = false) {
         const body = code ? { Operate: { moduleOperateCode: code } } : undefined;
-        return this.sendRequest('PUT', endpoint, body, body ? { 'Content-Type': 'application/json' } : {});
+        try {
+            return await this.sendRequest('PUT', endpoint, body, body ? { 'Content-Type': 'application/json' } : {});
+        }
+        catch (error) {
+            // Handle InvalidArmModeTransitionError by disarming first, then retrying
+            if (!isRetry && error instanceof InvalidArmModeTransitionError) {
+                // Disarm first
+                const sid = subsystemId ?? SUBSYSTEM_WILDCARD;
+                const disarmEndpoint = HikAxPro.withJsonFormat(HikAxPro.fillSubsystemEndpoint(ENDPOINTS.Alarm_Disarm, sid));
+                await this.executeArmDisarmOperation(disarmEndpoint, code, subsystemId, true);
+                // Retry the original arm operation
+                return this.executeArmDisarmOperation(endpoint, code, subsystemId, true);
+            }
+            throw error;
+        }
     }
     /**
      * Arm subsystem in STAY/HOME mode. If subsystemId omitted, uses wildcard 0xffffffff (all / default).
@@ -219,7 +253,7 @@ class HikAxPro {
     async armStay(subsystemId, code) {
         const sid = subsystemId ?? SUBSYSTEM_WILDCARD;
         const endpoint = HikAxPro.withJsonFormat(HikAxPro.fillSubsystemEndpoint(ENDPOINTS.Alarm_ArmHome, sid));
-        return this.executeArmDisarmOperation(endpoint, code);
+        return this.executeArmDisarmOperation(endpoint, code, sid);
     }
     /**
      * Arm subsystem in AWAY mode. If subsystemId omitted, uses wildcard 0xffffffff.
@@ -227,7 +261,7 @@ class HikAxPro {
     async armAway(subsystemId, code) {
         const sid = subsystemId ?? SUBSYSTEM_WILDCARD;
         const endpoint = HikAxPro.withJsonFormat(HikAxPro.fillSubsystemEndpoint(ENDPOINTS.Alarm_ArmAway, sid));
-        return this.executeArmDisarmOperation(endpoint, code);
+        return this.executeArmDisarmOperation(endpoint, code, sid);
     }
     /**
      * Disarm subsystem. If subsystemId omitted, uses wildcard 0xffffffff.
@@ -235,7 +269,7 @@ class HikAxPro {
     async disarm(subsystemId, code) {
         const sid = subsystemId ?? SUBSYSTEM_WILDCARD;
         const endpoint = HikAxPro.withJsonFormat(HikAxPro.fillSubsystemEndpoint(ENDPOINTS.Alarm_Disarm, sid));
-        return this.executeArmDisarmOperation(endpoint, code);
+        return this.executeArmDisarmOperation(endpoint, code, sid);
     }
 }
 exports.HikAxPro = HikAxPro;
