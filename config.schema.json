@@ -52,8 +52,7 @@
         "default": 5000,
         "minimum": 1000,
         "maximum": 60000,
-        "description": "How often to poll the panel for status updates. Lower values provide faster updates but increase network traffic.",
-        "presentation": "text"
+        "description": "How often to poll the panel for status updates. Lower values provide faster updates but increase network traffic."
       }
     }
   },
