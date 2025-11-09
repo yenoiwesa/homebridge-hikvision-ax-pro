@@ -53,11 +53,11 @@ export class HikvisionAxProPlatform implements DynamicPlatformPlugin {
       host: config.host,
       username: config.username,
       password: config.password,
-      userLevel: config.userLevel || 1,
+      userLevel: config.userLevel ?? 1,
     });
 
     // Initialize cache manager
-    const pollingInterval = config.pollingInterval || 5000;
+    const pollingInterval = config.pollingInterval ?? 5000;
     this.cacheManager = new CacheManager(this.hikaxpro, pollingInterval, this.log);
 
     this.log.debug('Finished initializing platform');
