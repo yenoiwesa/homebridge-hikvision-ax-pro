@@ -1,5 +1,5 @@
 import type { CharacteristicValue, PlatformAccessory, Service } from 'homebridge';
-import type { HikvisionAxProPlatform } from './platform';
+import type { HikvisionAxProPlatform, MotionSensorAccessoryContext } from './platform';
 import type { CacheManager } from './cacheManager';
 
 /**
@@ -11,7 +11,7 @@ export class MotionSensorAccessory {
 
   constructor(
     private readonly platform: HikvisionAxProPlatform,
-    private readonly accessory: PlatformAccessory,
+    private readonly accessory: PlatformAccessory<MotionSensorAccessoryContext>,
     private readonly cacheManager: CacheManager
   ) {
     // Set accessory information

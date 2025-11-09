@@ -1,5 +1,5 @@
 import type { CharacteristicValue, PlatformAccessory, Service } from 'homebridge';
-import type { HikvisionAxProPlatform } from './platform';
+import type { HikvisionAxProPlatform, SecuritySystemAccessoryContext } from './platform';
 import type { CacheManager } from './cacheManager';
 import type { ArmingState } from './hikaxpro';
 
@@ -12,7 +12,7 @@ export class SecuritySystemAccessory {
 
   constructor(
     private readonly platform: HikvisionAxProPlatform,
-    private readonly accessory: PlatformAccessory,
+    private readonly accessory: PlatformAccessory<SecuritySystemAccessoryContext>,
     private readonly cacheManager: CacheManager
   ) {
     // Set accessory information

@@ -8,7 +8,7 @@ import type {
   Service,
 } from 'homebridge';
 
-import { HikAxPro } from './hikaxpro';
+import { HikAxPro, SubsystemStatus, ZoneStatus } from './hikaxpro';
 import { CacheManager } from './cacheManager';
 import { SecuritySystemAccessory } from './securitySystemAccessory';
 import { MotionSensorAccessory } from './motionSensorAccessory';
@@ -20,6 +20,17 @@ export interface HikvisionAxProConfig extends PlatformConfig {
   password: string;
   userLevel?: number;
   pollingInterval?: number; // in milliseconds, default 5000
+}
+
+/**
+ * Context stored in platform accessories
+ */
+export interface SecuritySystemAccessoryContext {
+  device: SubsystemStatus;
+}
+
+export interface MotionSensorAccessoryContext {
+  device: ZoneStatus;
 }
 
 /**
@@ -102,10 +113,17 @@ export class HikvisionAxProPlatform implements DynamicPlatformPlugin {
           );
           existingAccessory.context.device = subsystem;
           this.api.updatePlatformAccessories([existingAccessory]);
-          new SecuritySystemAccessory(this, existingAccessory, this.cacheManager);
+          new SecuritySystemAccessory(
+            this,
+            existingAccessory as PlatformAccessory<SecuritySystemAccessoryContext>,
+            this.cacheManager
+          );
         } else {
           this.log.info('Adding new security system:', subsystem.name);
-          const accessory = new this.api.platformAccessory(subsystem.name, uuid);
+          const accessory = new this.api.platformAccessory<SecuritySystemAccessoryContext>(
+            subsystem.name,
+            uuid
+          );
           accessory.context.device = subsystem;
           new SecuritySystemAccessory(this, accessory, this.cacheManager);
           this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
@@ -124,10 +142,17 @@ export class HikvisionAxProPlatform implements DynamicPlatformPlugin {
           );
           existingAccessory.context.device = zone;
           this.api.updatePlatformAccessories([existingAccessory]);
-          new MotionSensorAccessory(this, existingAccessory, this.cacheManager);
+          new MotionSensorAccessory(
+            this,
+            existingAccessory as PlatformAccessory<MotionSensorAccessoryContext>,
+            this.cacheManager
+          );
         } else {
           this.log.info('Adding new motion sensor:', zone.name);
-          const accessory = new this.api.platformAccessory(zone.name, uuid);
+          const accessory = new this.api.platformAccessory<MotionSensorAccessoryContext>(
+            zone.name,
+            uuid
+          );
           accessory.context.device = zone;
           new MotionSensorAccessory(this, accessory, this.cacheManager);
           this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
