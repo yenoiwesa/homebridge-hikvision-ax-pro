@@ -22,6 +22,7 @@ module.exports = [
       '@typescript-eslint': tsPlugin,
     },
     rules: {
+      ...tsPlugin.configs.recommended.rules,
       semi: ['error', 'always'],
       quotes: ['error', 'single'],
       'no-console': 'off',
