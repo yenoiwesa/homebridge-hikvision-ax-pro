@@ -47,6 +47,7 @@ export interface SubsystemStatus {
   id: string;
   name: string;
   arming: ArmingState;
+  alarm: boolean;
 }
 
 export interface ZoneStatus {
@@ -76,7 +77,7 @@ interface SessionParams {
 
 interface SubSystemResponse {
   SubSysList?: Array<{
-    SubSys?: { id: string; name: string; arming: ArmingState; enabled: boolean };
+    SubSys?: { id: string; name: string; arming: ArmingState; enabled: boolean; alarm: boolean };
   }>;
 }
 
@@ -313,6 +314,7 @@ export class HikAxPro {
         id: s.id,
         name: s.name,
         arming: s.arming,
+        alarm: s.alarm,
       }));
   }
 

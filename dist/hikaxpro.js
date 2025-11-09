@@ -207,6 +207,7 @@ class HikAxPro {
             id: s.id,
             name: s.name,
             arming: s.arming,
+            alarm: s.alarm,
         }));
     }
     /**

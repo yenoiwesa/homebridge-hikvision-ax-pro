@@ -43,8 +43,12 @@ class SecuritySystemAccessory {
     /**
      * Map Hikvision arming state to HomeKit SecuritySystemCurrentState
      */
-    mapArmingStateToCurrentState(arming) {
-        switch (arming) {
+    mapArmingStateToCurrentState(subsystem) {
+        // If alarm is triggered, always return ALARM_TRIGGERED regardless of arming state
+        if (subsystem.alarm) {
+            return this.platform.Characteristic.SecuritySystemCurrentState.ALARM_TRIGGERED;
+        }
+        switch (subsystem.arming) {
             case 'stay':
                 return this.platform.Characteristic.SecuritySystemCurrentState.STAY_ARM;
             case 'away':
@@ -62,8 +66,8 @@ class SecuritySystemAccessory {
     /**
      * Map Hikvision arming state to HomeKit SecuritySystemTargetState
      */
-    mapArmingStateToTargetState(arming) {
-        switch (arming) {
+    mapArmingStateToTargetState(subsystem) {
+        switch (subsystem.arming) {
             case 'stay':
                 return this.platform.Characteristic.SecuritySystemTargetState.STAY_ARM;
             case 'away':
@@ -83,8 +87,8 @@ class SecuritySystemAccessory {
             const subsystems = this.cacheManager.getCachedSubsystems();
             const subsystem = subsystems.find((s) => s.id === this.accessory.context.device.id);
             if (subsystem) {
-                const state = this.mapArmingStateToCurrentState(subsystem.arming);
-                this.platform.log.debug(`Get CurrentState for ${subsystem.name}: ${subsystem.arming} -> ${state}`);
+                const state = this.mapArmingStateToCurrentState(subsystem);
+                this.platform.log.debug(`Get CurrentState for ${subsystem.name}: ${subsystem.arming} (alarm: ${subsystem.alarm}) -> ${state}`);
                 return state;
             }
         }
@@ -103,7 +107,7 @@ class SecuritySystemAccessory {
             const subsystems = this.cacheManager.getCachedSubsystems();
             const subsystem = subsystems.find((s) => s.id === this.accessory.context.device.id);
             if (subsystem) {
-                const state = this.mapArmingStateToTargetState(subsystem.arming);
+                const state = this.mapArmingStateToTargetState(subsystem);
                 this.platform.log.debug(`Get TargetState for ${subsystem.name}: ${subsystem.arming} -> ${state}`);
                 return state;
             }
@@ -155,8 +159,8 @@ class SecuritySystemAccessory {
             const subsystems = this.cacheManager.getCachedSubsystems();
             const subsystem = subsystems.find((s) => s.id === this.accessory.context.device.id);
             if (subsystem) {
-                const currentState = this.mapArmingStateToCurrentState(subsystem.arming);
-                const targetState = this.mapArmingStateToTargetState(subsystem.arming);
+                const currentState = this.mapArmingStateToCurrentState(subsystem);
+                const targetState = this.mapArmingStateToTargetState(subsystem);
                 this.service.updateCharacteristic(this.platform.Characteristic.SecuritySystemCurrentState, currentState);
                 this.service.updateCharacteristic(this.platform.Characteristic.SecuritySystemTargetState, targetState);
             }
