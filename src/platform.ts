@@ -130,8 +130,15 @@ export class HikvisionAxProPlatform implements DynamicPlatformPlugin {
         }
       }
 
-      // Register motion sensor accessory for each zone
-      for (const zone of zones) {
+      // Register motion sensor accessory for each zone with motion detection capability
+      const motionDetectorTypes = [
+        'passiveInfraredDetector',
+        'dualTechnologyPirDetector',
+        'tripleTechnologyPirDetector',
+      ];
+      const motionZones = zones.filter((zone) => motionDetectorTypes.includes(zone.detectorType));
+
+      for (const zone of motionZones) {
         const uuid = this.api.hap.uuid.generate(`zone-${zone.id}`);
         const existingAccessory = this.accessories.get(uuid);
 

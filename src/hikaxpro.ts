@@ -20,6 +20,21 @@ const SUBSYSTEM_WILDCARD = '0xffffffff' as const;
 
 export type ArmingState = 'disarm' | 'away' | 'stay' | 'arming' | 'disarming';
 export type ZoneStatusType = 'normal' | 'trigger' | 'tamper' | 'fault' | 'bypass';
+export type ZoneDetectorType =
+  | 'panicButton'
+  | 'magneticContact'
+  | 'smokeDetector'
+  | 'passiveInfraredDetector'
+  | 'glassBreakDetector'
+  | 'vibrationDetector'
+  | 'dualTechnologyPirDetector'
+  | 'tripleTechnologyPirDetector'
+  | 'humidityDetector'
+  | 'temperatureDetector'
+  | 'combustibleGasDetector'
+  | 'waterLeakDetector'
+  | 'tamperDetector'
+  | 'other';
 
 export interface HikAxProOptions {
   host: string;
@@ -38,6 +53,7 @@ export interface ZoneStatus {
   id: string;
   name: string;
   status: ZoneStatusType;
+  detectorType: ZoneDetectorType;
 }
 
 export interface ArmDisarmResponse {
@@ -65,7 +81,9 @@ interface SubSystemResponse {
 }
 
 interface ZoneResponse {
-  ZoneList?: Array<{ Zone?: { id: string; name: string; status: ZoneStatusType } }>;
+  ZoneList?: Array<{
+    Zone?: { id: string; name: string; status: ZoneStatusType; detectorType: ZoneDetectorType };
+  }>;
 }
 
 /**
@@ -311,6 +329,7 @@ export class HikAxPro {
         id: z.id,
         name: z.name,
         status: z.status,
+        detectorType: z.detectorType,
       }));
   }
 

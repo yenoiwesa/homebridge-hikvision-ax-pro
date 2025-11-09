@@ -222,6 +222,7 @@ class HikAxPro {
             id: z.id,
             name: z.name,
             status: z.status,
+            detectorType: z.detectorType,
         }));
     }
     /**
