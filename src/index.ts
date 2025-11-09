@@ -1,7 +1,10 @@
-async function main(): Promise<void> {
-  console.log('Hello World - Homebridge Hikvision AX Pro');
-}
+import { API } from 'homebridge';
+import { HikvisionAxProPlatform } from './platform';
+import { PLATFORM_NAME } from './settings';
 
-if (require.main === module) {
-  main();
-}
+/**
+ * This method registers the platform with Homebridge
+ */
+export = (api: API) => {
+  api.registerPlatform(PLATFORM_NAME, HikvisionAxProPlatform);
+};

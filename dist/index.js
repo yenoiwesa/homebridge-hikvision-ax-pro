@@ -1,7 +1,6 @@
 "use strict";
-async function main() {
-    console.log('Hello World - Homebridge Hikvision AX Pro');
-}
-if (require.main === module) {
-    main();
-}
+const platform_1 = require("./platform");
+const settings_1 = require("./settings");
+module.exports = (api) => {
+    api.registerPlatform(settings_1.PLATFORM_NAME, platform_1.HikvisionAxProPlatform);
+};

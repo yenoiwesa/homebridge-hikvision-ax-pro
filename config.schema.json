@@ -1,0 +1,49 @@
+{
+  "pluginAlias": "HikvisionAxPro",
+  "pluginType": "platform",
+  "singular": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "title": "Name",
+        "type": "string",
+        "required": true,
+        "default": "Hikvision AX Pro"
+      },
+      "host": {
+        "title": "Panel IP Address",
+        "type": "string",
+        "required": true,
+        "format": "hostname",
+        "placeholder": "192.168.1.120"
+      },
+      "username": {
+        "title": "Username",
+        "type": "string",
+        "required": true,
+        "placeholder": "admin"
+      },
+      "password": {
+        "title": "Password",
+        "type": "string",
+        "required": true
+      },
+      "userLevel": {
+        "title": "User Level",
+        "type": "number",
+        "default": 1,
+        "minimum": 0,
+        "maximum": 1,
+        "description": "0 for installer level, 1 for admin/operator level"
+      },
+      "pollingInterval": {
+        "title": "Polling Interval (ms)",
+        "type": "number",
+        "default": 5000,
+        "minimum": 1000,
+        "description": "How often to poll the panel for status updates (in milliseconds)"
+      }
+    }
+  }
+}

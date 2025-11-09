@@ -1,8 +1,9 @@
 {
   "name": "homebridge-hikvision-ax-pro",
+  "displayName": "Homebridge Hikvision AX Pro",
   "version": "1.0.0",
-  "description": "Vanilla Node.js project for Homebridge Hikvision AX Pro integration.",
-  "main": "index.js",
+  "description": "Homebridge plugin for Hikvision AX Pro alarm system integration.",
+  "main": "dist/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc",
@@ -12,12 +13,24 @@
     "test:dev": "ts-node src/test.ts",
     "lint:prettier": "prettier \"src/**/*.ts\" --write",
     "lint:eslint": "eslint \"src/**/*.ts\"",
-    "lint": "npm run lint:eslint && npm run lint:prettier"
+    "lint": "npm run lint:eslint && npm run lint:prettier",
+    "watch": "npm run build && npm link && nodemon",
+    "prepublishOnly": "npm run lint && npm run build"
   },
-  "keywords": [],
+  "keywords": [
+    "homebridge-plugin",
+    "hikvision",
+    "ax-pro",
+    "alarm",
+    "security"
+  ],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "engines": {
+    "node": ">=18.0.0",
+    "homebridge": ">=1.6.0"
+  },
   "dependencies": {
     "axios": "^1.13.2",
     "xml2js": "^0.6.2"
@@ -29,6 +42,8 @@
     "@typescript-eslint/parser": "^8.46.3",
     "eslint": "^9.39.1",
     "eslint-config-eslint": "^13.0.0",
+    "homebridge": "^1.11.1",
+    "nodemon": "^3.1.10",
     "prettier": "^3.6.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
