@@ -1,13 +1,8 @@
-// ESLint configuration migrated from .eslintrc.json
-// See: https://eslint.org/docs/latest/use/configure/migration-guide
-
-/** @type {import('eslint').Linter.FlatConfig} */
-
 const js = require('@eslint/js');
 const tsPlugin = require('@typescript-eslint/eslint-plugin');
 const tsParser = require('@typescript-eslint/parser');
+const globals = require('globals');
 
-/** @type {import('eslint').Linter.FlatConfig} */
 module.exports = [
   js.configs.recommended,
   {
@@ -20,15 +15,7 @@ module.exports = [
         project: './tsconfig.json',
       },
       globals: {
-        require: 'readonly',
-        module: 'readonly',
-        __dirname: 'readonly',
-        process: 'readonly',
-        console: 'readonly',
-        setTimeout: 'readonly',
-        setInterval: 'readonly',
-        clearTimeout: 'readonly',
-        clearInterval: 'readonly',
+        ...globals.node,
       },
     },
     plugins: {
@@ -37,7 +24,6 @@ module.exports = [
     rules: {
       semi: ['error', 'always'],
       quotes: ['error', 'single'],
-      '@typescript-eslint/no-unused-vars': ['warn'],
       'no-console': 'off',
     },
   },

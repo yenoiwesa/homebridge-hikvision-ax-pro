@@ -7,12 +7,14 @@ import type { ArmingState } from './hikaxpro';
  * Represents a Hikvision AX Pro alarm subsystem as a HomeKit SecuritySystem
  */
 export class SecuritySystemAccessory {
-  private service: Service;
+  private readonly service: Service;
+  private readonly platform: HikvisionAxProPlatform;
+  private readonly accessory: PlatformAccessory;
 
-  constructor(
-    private readonly platform: HikvisionAxProPlatform,
-    private readonly accessory: PlatformAccessory
-  ) {
+  constructor(platform: HikvisionAxProPlatform, accessory: PlatformAccessory) {
+    this.platform = platform;
+    this.accessory = accessory;
+
     // Set accessory information
     this.accessory
       .getService(this.platform.Service.AccessoryInformation)!

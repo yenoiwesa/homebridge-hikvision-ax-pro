@@ -32,7 +32,7 @@ export class HikvisionAxProPlatform implements DynamicPlatformPlugin {
   public readonly accessories: Map<string, PlatformAccessory> = new Map();
   public readonly hikaxpro!: HikAxPro;
   public readonly pollingInterval!: number;
-  private pollingTimer?: NodeJS.Timeout;
+  private pollingTimer?: ReturnType<typeof setInterval>;
 
   // Cached status data shared by all accessories
   private cachedSubsystems: SubsystemStatus[] = [];

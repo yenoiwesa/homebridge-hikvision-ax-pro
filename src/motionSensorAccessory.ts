@@ -6,12 +6,14 @@ import type { HikvisionAxProPlatform } from './platform';
  * Represents a Hikvision AX Pro zone as a HomeKit MotionSensor
  */
 export class MotionSensorAccessory {
-  private service: Service;
+  private readonly service: Service;
+  private readonly platform: HikvisionAxProPlatform;
+  private readonly accessory: PlatformAccessory;
 
-  constructor(
-    private readonly platform: HikvisionAxProPlatform,
-    private readonly accessory: PlatformAccessory
-  ) {
+  constructor(platform: HikvisionAxProPlatform, accessory: PlatformAccessory) {
+    this.platform = platform;
+    this.accessory = accessory;
+
     // Set accessory information
     this.accessory
       .getService(this.platform.Service.AccessoryInformation)!
