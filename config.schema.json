@@ -2,6 +2,7 @@
   "pluginAlias": "HikvisionAxPro",
   "pluginType": "platform",
   "singular": true,
+  "headerDisplay": "This plugin exposes Hikvision AX Pro alarm subsystems and zones to HomeKit as security systems and motion sensors.",
   "schema": {
     "type": "object",
     "properties": {
@@ -9,41 +10,88 @@
         "title": "Name",
         "type": "string",
         "required": true,
-        "default": "Hikvision AX Pro"
+        "default": "Hikvision AX Pro",
+        "description": "The name for this platform instance as it appears in the Homebridge logs."
       },
       "host": {
-        "title": "Panel IP Address",
+        "title": "Panel IP Address or Hostname",
         "type": "string",
         "required": true,
         "format": "hostname",
-        "placeholder": "192.168.1.120"
+        "placeholder": "192.168.1.120",
+        "description": "The IP address or hostname of your Hikvision AX Pro panel."
       },
       "username": {
         "title": "Username",
         "type": "string",
         "required": true,
-        "placeholder": "admin"
+        "placeholder": "admin",
+        "description": "Username for authenticating with the AX Pro panel."
       },
       "password": {
         "title": "Password",
         "type": "string",
-        "required": true
+        "required": true,
+        "description": "Password for authenticating with the AX Pro panel."
       },
       "userLevel": {
         "title": "User Level",
-        "type": "number",
+        "type": "integer",
         "default": 1,
         "minimum": 0,
         "maximum": 1,
-        "description": "0 for installer level, 1 for admin/operator level"
+        "oneOf": [
+          { "title": "Installer", "enum": [0] },
+          { "title": "Admin/Operator", "enum": [1] }
+        ],
+        "description": "Access level for the API connection. Use 1 for admin/operator level (recommended)."
       },
       "pollingInterval": {
-        "title": "Polling Interval (ms)",
-        "type": "number",
+        "title": "Polling Interval (milliseconds)",
+        "type": "integer",
         "default": 5000,
         "minimum": 1000,
-        "description": "How often to poll the panel for status updates (in milliseconds)"
+        "maximum": 60000,
+        "description": "How often to poll the panel for status updates. Lower values provide faster updates but increase network traffic."
       }
     }
-  }
+  },
+  "layout": [
+    {
+      "type": "flex",
+      "flex-flow": "row wrap",
+      "items": [
+        {
+          "key": "name",
+          "flex": "1 1 50%"
+        },
+        {
+          "key": "host",
+          "flex": "1 1 50%"
+        }
+      ]
+    },
+    {
+      "type": "flex",
+      "flex-flow": "row wrap",
+      "items": [
+        {
+          "key": "username",
+          "flex": "1 1 50%"
+        },
+        {
+          "key": "password",
+          "type": "password",
+          "flex": "1 1 50%"
+        }
+      ]
+    },
+    {
+      "type": "fieldset",
+      "title": "Advanced Settings",
+      "expandable": true,
+      "expanded": false,
+      "items": ["userLevel", "pollingInterval"]
+    }
+  ]
 }
